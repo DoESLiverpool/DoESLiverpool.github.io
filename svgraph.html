@@ -15,21 +15,24 @@ function exportSVG()
     $("#text_output").val(details);
 }
 
+var mmpixwidth, mmpixheight; // to be used to scale back to output SVG
 function WorkOutPixelScale(txt, td) 
 {
     var tsvg = $(td.children()[0]).parent(); // seems not to work directly
     var sheight = tsvg.attr("height"); 
     var swidth = tsvg.attr("width"); 
-    var viewBox = []; // (unable to lift the viewBox as an attribute)
+    var viewBox = []; // (seemingly unable to lift the viewBox as an attribute)
     txt.replace(/viewBox="(-?\d*\.?\d*(?:e[\-+]?\d+)?)\s+(-?\d*\.?\d*(?:e[\-+]?\d+)?)\s+(-?\d*\.?\d*(?:e[\-+]?\d+)?)\s+(-?\d*\.?\d*(?:e[\-+]?\d+)?)/g, 
         function(a, x, y, w, h) { 
             viewBox.push(parseFloat(x), parseFloat(y), parseFloat(w), parseFloat(h)); 
     }); 
     console.log("facts:" + sheight+"  "+swidth + "  "+viewBox); 
-    mmheight = parseFloat(sheight); 
-    mmwidth = parseFloat(sheight); 
-    $("#pixscaleX").text(mmwidth/viewBox[2]); 
-    $("#pixscaleY").text(mmheight/viewBox[3]); 
+    var mmheight = parseFloat(sheight); 
+    var mmwidth = parseFloat(sheight); 
+    mmpixwidth = mmwidth/viewBox[2]; 
+    mmpixheight = mmheight/viewBox[3]; 
+    $("#pixscaleX").text(mmpixwidth.toFixed(3)); 
+    $("#pixscaleY").text(mmpixheight.toFixed(3)); 
 }
 
 var paper1 = null; 
@@ -53,6 +56,8 @@ function importSVG(txt)
 {
     var td = $(txt);
     WorkOutPixelScale(txt, td); 
+    var dscalebar = "M20,20l"+(100/mmpixwidth)+",0l0,5M20,20l0,"+(100/mmpixheight)+"l5,0"; 
+    paper1.path(dscalebar).attr("stroke", "#b66"); 
 
     // do port the paths over to raphaeljs
     td.find("path").each(function(i, v) { 
@@ -92,7 +97,6 @@ function importSVGfiles(files)
 
 
 var rect1;
-var De; 
 function setup()
 {
     $("#export").click(exportSVG); 
@@ -114,7 +118,7 @@ function setup()
 
    
     // setup the raphael paper
-    paper1 = Raphael("paper1", 1600, 800);
+    paper1 = Raphael("paper1", 1300, 800);
     rect1 = paper1.path("M20,30 L100,122 L40, 100 Z").attr({fill: "orange"});
     rect2 = paper1.path("M220,30 L300,122 L290, 100 Z").attr({fill: "blue"});
     var data = $("#paper1 svg").attr("id", "svg1"); 
@@ -156,7 +160,6 @@ input[type="text"] { width:6em }
 <p>Code is <a href="https://github.com/goatchurchprime/doesliverpool.github.io/">here</a></p>
 
 <p>Work to do:
-Need to flatten transforms.  See if RaphaelJS can perform this by loading in SVG files and cleaning them up.
 Can we extract a workable SVG file as output that goes into the laser cutter?
 Then easier to add transforms and rotations to the absolute set of parts
 Spare parts on the side.
