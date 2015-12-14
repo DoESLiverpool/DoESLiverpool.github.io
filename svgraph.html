@@ -35,9 +35,48 @@ function WorkOutPixelScale(txt, td)
     $("#pixscaleY").text(mmpixheight.toFixed(3)); 
 }
 
+function TestCollision(dx, dy) 
+{
+    for (var i = 0; i < opts.length; i++) {
+        var x = opts[i][0] + dx; 
+        var y = opts[i][1] + dy; 
+        if (y >= paper1.height)
+            return false; 
+        for (var j = 0; j < rlist.length; j++) {
+            if (rlist[j] == pathselected)
+                continue; 
+            if (rlist[j].isPointInside(x, y))
+                return false; 
+        }
+    }
+    return true; 
+}
+
 var paper1 = null; 
 var rlist = [ ]; 
 var pathselected = null; 
+var opts; 
+var collidestepout = 10, collidestepover = 10; 
+var ylo, yhi; 
+var perprods; 
+function CollideBinary() 
+{
+    // paper1.getElementsByPoint(x, y); 
+    var ymid = (ylo + yhi)/2; 
+    if (TestCollision(0, ymid)) {
+        ylo = ymid; 
+        pathselected.transform("t0,"+ylo); 
+    } else {
+        yhi = ymid; 
+    }
+    if (yhi - ylo <= collidestepout + 1) {
+        pathselected.attr("path", Raphael.mapPath(pathselected.attr("path"), pathselected.matrix)); 
+        pathselected.transform("t0,0"); 
+        perprods.remove(); 
+    } else {
+        setTimeout(CollideBinary, 5); 
+    }
+}
 
 function MoveCollide()
 {
@@ -45,11 +84,22 @@ function MoveCollide()
     var pl = path.getTotalLength(); 
     console.log(pl); 
     var ds = [ ]; 
-    for (var i = 0; i < pl; i += 10) {
+    opts = [ ]; 
+    for (var i = 0; i < pl; i += collidestepover) {
         var pal = path.getPointAtLength(i); 
-        ds.push("M", pal.x, ",", pal.y, "L", pal.x+3, ",", pal.y); 
+        var angnorm = Raphael.rad(pal.alpha+90); 
+        var sa = Math.sin(angnorm); 
+        var ca = Math.cos(angnorm); 
+        var d = collidestepout; 
+        if (path.isPointInside(pal.x+ca*d, pal.y+sa*d)) { d = -d }; 
+        ds.push("M", pal.x, ",", pal.y, "l", ca*d, ",", sa*d); 
+        opts.push([pal.x+ca*d, pal.y+sa*d]); 
     }
-    paper1.path(ds.join("")); 
+    
+    perprods = paper1.path(ds.join("")); 
+    ylo = 0; 
+    yhi = 400; 
+    setTimeout(CollideBinary, 5); 
 }
 
 function importSVG(txt)
