@@ -15,6 +15,40 @@ function exportSVG()
     $("#text_output").val(details);
 }
 
+function exportPLT()
+{
+    var lplt = [ "IN" ]; 
+    var samplerateunit = 0.9; 
+    var fac = 10; 
+    var ytop = 10000; 
+    var spnums = { }, spcount = 1; 
+    $.each(rlist, function(i, path) {
+        var pl = path.getTotalLength(); 
+        if (pl != 0.0) {
+            var nsamples = Math.ceil(pl/samplerateunit); 
+            var p0 = path.getPointAtLength(0.0); 
+            if (spnums[path.attr("stroke")] == undefined)
+                spnums[path.attr("stroke")] = spcount++; 
+            var spnum = spnums[path.attr("stroke")]; 
+            llplt = [ "PU;SP"+spnum+";PA"+(p0.x*fac).toFixed(3)+","+(ytop-p0.y*fac).toFixed(3)+";PD"+(p0.x*fac).toFixed(3), (ytop-p0.y*fac).toFixed(3) ]; 
+            for (var i = 1; i <= nsamples; i++) {
+                var pal = path.getPointAtLength(pl*(i/nsamples)); 
+                llplt.push((pal.x*fac).toFixed(3), (ytop-pal.y*fac).toFixed(3)); 
+            }
+            lplt.push(llplt.join(",")); 
+        }
+    }); 
+    
+    /*var xd = 240;  // make the test wedge
+    var yd = Math.sin(Raphael.rad(2.5))*xd; 
+    function cc(x, y) { return (x*fac).toFixed(3)+","+(ytop-y*fac).toFixed(3); }
+    lplt.push("PU;SP4;PA"+cc(180,110)+";PD"+cc(180,110)+","+cc(180,90)); 
+    lplt.push("PU;SP4;PA"+cc(100,100)+";PD"+cc(100,100)+","+cc(100+xd,100+yd)+","+cc(100+xd,100-yd)+","+cc(100,100)); */
+    
+    lplt.push("PU"); 
+    $("#text_output").val(lplt.join(";\n"));
+}
+
 var mmpixwidth, mmpixheight; // to be used to scale back to output SVG
 function WorkOutPixelScale(txt, td) 
 {
@@ -78,6 +112,16 @@ function CollideBinary()
     }
 }
 
+/* refer to: 
+    elproto.isPointInside = function (x, y) {
+        var rp = this.realPath = getPath[this.type](this);
+        if (this.attr('transform') && this.attr('transform').length) {
+            rp = R.transformPath(rp, this.attr('transform'));
+        }
+        return R.isPointInsidePath(rp, x, y);
+    };
+*/
+
 function MoveCollide()
 {
     path = pathselected; 
@@ -116,12 +160,15 @@ function importSVG(txt)
         if (true || d.search(/Z$/gi) != -1) {
             var transforms = [ vd.attr("transform") ]; 
             vd.parents().each(function(j, p) { transforms.push($(p).attr("transform")); }); 
-            $.each(transforms, function(j, t) {  if (t)  d = Raphael.transformPath(d, t.replace(/([mtr])\w+\s*\(([^\)]*)\)/gi, function(a, b, c) { return b+c} )) }); 
+            var stransforms = [ ]; 
+            $.each(transforms.reverse(), function(j, t) {  if (t)  stransforms.push(t.replace(/([mtrs])\w+\s*\(([^\)]*)\)/gi, function(a, b, c) { return b.toLowerCase()+c+(b.match(/s/i) ? ",0,0" : ""); } )) }); 
+            console.log(stransforms.join("")); 
+            d = Raphael.transformPath(d, stransforms.join("")); 
             var path = paper1.path(d);
             path.attr({stroke:vd.css("stroke"), "stroke-width":2, fill:"#00f", "fill-opacity":"10%"}); 
             var brotatemode = false; 
             path.drag(
-                function(dx, dy) { path.transform(brotatemode ? "r"+(dx*0.5) : "t"+dx+","+dy); }, 
+                function(dx, dy) { path.transform(brotatemode ? "r"+(dx*0.25) : "t"+dx+","+dy); }, 
                 function(x, y, e)  { brotatemode = e.ctrlKey; pathselected = path; }, 
                 function() { path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); path.transform("t0,0") }
             ); 
@@ -150,6 +197,7 @@ var rect1;
 function setup()
 {
     $("#export").click(exportSVG); 
+    $("#exportPLT").click(exportPLT); 
     $("#movecollide").click(MoveCollide); 
     $("#import").click(function(e) { importSVG($("#text_output").val()); }); 
     $("#files").change(function(e) { importSVGfiles(e.target.files); });  
@@ -199,9 +247,10 @@ input[type="text"] { width:6em }
   
 <div>
     <input type="button" value="export" id="export"/>
+    <input type="button" value="exportPLT" id="exportPLT"/>
     <input type="button" value="MOVE!" id="movecollide">
     <input type="button" value="import" id="import"/>
-    <input type="text" id="text_output" />
+    <textarea id="text_output"></textarea>
     <input type="file" id="files" name="files[]" multiple />
     <span id="pixscale">pix-scaleX(mm):<span id="pixscaleX"></span>  pix-scaleY(mm):<span id="pixscaleY"></span></span>
 </div>
