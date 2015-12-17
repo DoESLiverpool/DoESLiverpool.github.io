@@ -22,20 +22,14 @@ function exportPLT()
     var samplerateunit = 0.9; 
     var fac = 40/mmpixwidth; // PLT file operates at 40units per pixel
     var ytop = 10000; 
-    var spnums = { }, spcount = 1; 
     var i = 0; 
     bcancelExIm = false; 
     $("#readingcancel").text("exportPLT"); 
     function exportPLTpathR() {
-        console.log(i); 
-        console.log(rlist); 
         var path = rlist[i]; 
-        console.log(path); 
         var pl = path.getTotalLength(); 
         if (pl != 0.0) {
             var nsamples = Math.ceil(pl/samplerateunit); 
-            if (spnums[path.attr("stroke")] == undefined)
-                spnums[path.attr("stroke")] = spcount++; 
             var spnum = spnums[path.attr("stroke")]; 
             lplt.push("SP"+spnum+";\n"); 
             lplt.push("LT;\n"); 
@@ -63,6 +57,7 @@ function exportPLT()
 }
 
 var mmpixwidth, mmpixheight; // to be used to scale back to output SVG
+var spnums = { }, spcount = 0; 
 function WorkOutPixelScale(txt, td) 
 {
     var tsvg = $(td.children()[0]).parent(); // seems not to work directly
@@ -192,7 +187,13 @@ function importSVG(txt)
                 function(x, y, e)  { brotatemode = e.ctrlKey; pathselected = path; }, 
                 function() { path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); path.transform("t0,0") }
             ); 
+            
             rlist.push(path); 
+            var spcol = path.attr("stroke");  
+            if (spnums[spcol] == undefined) {
+                spnums[spcol] = ++spcount; 
+                $("#spnumcols").append($('<span id="spnum'+spcount+'">X</span>').css("background", spcol)); 
+            }
         }
         if ((++i < tdpaths.length) && !bcancelExIm)
             setTimeout(importSVGpathR, timeoutcyclems); 
@@ -247,7 +248,6 @@ function setup()
     $("#scaledouble, #scale").mousedown(function(e) { e.preventDefault(); }); // stop selection on double-click
     $("#scale").text(paper1scale); 
     
-    
     // setup the raphael paper
     paper1 = Raphael("paper1", 1300, 800);
     rect1 = paper1.path("M20,30 L100,122 L40, 100 Z").attr({fill: "orange"});
@@ -275,6 +275,9 @@ input[type="text"] { width:6em }
 .dropfileselected { background: yellow }
 #readingcancel:hover { background: red; cursor: pointer }
 #scale:hover, #scaledouble:hover { background:yellow; cursor:pointer }
+#spnumcols:hover { cursor:pointer; }
+#spnumcols span { border: thin black solid }
+#spnumcols span:hover { border-color:white }
 
 </style>
 
@@ -288,6 +291,7 @@ input[type="text"] { width:6em }
     <span id="scale">1</span><span id="scaledouble">*2</span>
     <input type="button" value="import" id="import"/>
     <textarea id="text_output"></textarea>
+    <span id="spnumcols"></span>
     <input type="file" id="files" name="files[]" multiple />
     <span id="pixscale">pix-scaleX(mm):<span id="pixscaleX"></span>  pix-scaleY(mm):<span id="pixscaleY"></span></span>
     <span id="readingcancel">0/0</span>
