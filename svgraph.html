@@ -73,7 +73,7 @@ function TestCollision(dx, dy)
     for (var i = 0; i < opts.length; i++) {
         var x = opts[i][0] + dx; 
         var y = opts[i][1] + dy; 
-        if (y >= paper1.height)
+        if (y >= paper1.height*paper1scale)
             return false; 
         for (var j = 0; j < rlist.length; j++) {
             if (rlist[j] == pathselected)
@@ -86,6 +86,7 @@ function TestCollision(dx, dy)
 }
 
 var paper1 = null; 
+var paper1scale = 1; 
 var rlist = [ ]; 
 var pathselected = null; 
 var opts; 
@@ -152,7 +153,7 @@ function importSVG(txt)
     var td = $(txt);
     console.log("calc pixscale"); 
     WorkOutPixelScale(txt, td); 
-    var dscalebar = "M20,20l"+(100/mmpixwidth)+",0l0,5M20,20l0,"+(100/mmpixheight)+"l5,0"; 
+    var dscalebar = "M20,20l"+(100*mmpixwidth)+",0l0,5M20,20l0,"+(100*mmpixheight)+"l5,0"; 
     paper1.path(dscalebar).attr("stroke", "#b66"); 
     
     var timeoutcyclems = 10; 
@@ -174,7 +175,7 @@ function importSVG(txt)
             path.attr({stroke:vd.css("stroke"), "stroke-width":2, fill:"#00f", "fill-opacity":"10%"}); 
             var brotatemode = false; 
             path.drag(
-                function(dx, dy) { path.transform(brotatemode ? "r"+(dx*0.25) : "t"+dx+","+dy); }, 
+                function(dx, dy) { path.transform(brotatemode ? "r"+(dx*0.25) : "t"+(dx*paper1scale)+","+(dy*paper1scale)); }, 
                 function(x, y, e)  { brotatemode = e.ctrlKey; pathselected = path; }, 
                 function() { path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); path.transform("t0,0") }
             ); 
@@ -224,8 +225,16 @@ function setup()
         importSVGfiles(e.originalEvent.dataTransfer.files); 
     }); 
     $("#readingcancel").click(function() { bcancelimportSVG = true; }); 
-
-   
+    $("#scaledouble").click(function() { $("#scaledouble").text($("#scaledouble").text() == "*2" ? "/2" : "*2"); }); 
+    $("#scale").click(function() { 
+        paper1scale *= ($("#scaledouble").text() == "*2" ? 2 : 0.5); 
+        paper1.setViewBox(0, 0, paper1.width*paper1scale, paper1.height*paper1scale); 
+        $("#scale").text(paper1scale); 
+    }); 
+    $("#scaledouble, #scale").mousedown(function(e) { e.preventDefault(); }); // stop selection on double-click
+    $("#scale").text(paper1scale); 
+    
+    
     // setup the raphael paper
     paper1 = Raphael("paper1", 1300, 800);
     rect1 = paper1.path("M20,30 L100,122 L40, 100 Z").attr({fill: "orange"});
@@ -251,7 +260,9 @@ input[type="text"] { width:6em }
 #text_output { height: 1em; width: 250px }
 .thing { background: red }
 .dropfileselected { background: yellow }
-#readingcancel:hover { background: red }
+#readingcancel:hover { background: red; cursor: pointer }
+#scale:hover, #scaledouble:hover { background:yellow; cursor:pointer }
+
 </style>
 
 </head>
@@ -261,6 +272,7 @@ input[type="text"] { width:6em }
     <input type="button" value="export" id="export"/>
     <input type="button" value="exportPLT" id="exportPLT"/>
     <input type="button" value="MOVE!" id="movecollide">
+    <span id="scale">1</span><span id="scaledouble">*2</span>
     <input type="button" value="import" id="import"/>
     <textarea id="text_output"></textarea>
     <input type="file" id="files" name="files[]" multiple />
@@ -272,20 +284,8 @@ input[type="text"] { width:6em }
 <p>Code is <a href="https://github.com/goatchurchprime/doesliverpool.github.io/">here</a></p>
 
 <p>Work to do:
-Can we extract a workable SVG file as output that goes into the laser cutter?
-Then easier to add transforms and rotations to the absolute set of parts
-Spare parts on the side.
-(Ignore for now grouping and etching cases)
-Drag pieces across to the laser material base material rectangle
-Packing of shapes, want to do this with Python call-back or within javascript code?
-Also re-ordering of cuts and starting points for efficiency
-offset shapes too in python (takes any set of contours)
-Add parts to cut into a database online, listing materials etc, name of person, drop them in.  
-Each in own mini SVG window like icon.  Maybe a X10, counts down to zero.
-Select size of ply and start clicking on elements to bring in.
-Pack in by hand initially, but automatic placement close in, like playing tetris.
-Can reject shapes that don't fit to the list.
-DXF/SVG produced for the cutting driver
+*change td.find("path") so it iterates through children rather than global slow find function and keeps stack of transforms
+*interface table colours so can select which is external one and group all internal curves with it
 </p>
 
 </body>
