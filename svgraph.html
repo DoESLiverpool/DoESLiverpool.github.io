@@ -17,27 +17,27 @@ function exportSVG()
 
 function exportPLT()
 {
-    var lplt = [ "IN" ]; 
+    var lplt = [ "IN;", "WU0;" ]; 
     var samplerateunit = 0.9; 
-    var fac = 10; 
+    var fac = 40/mmpixwidth; // PLT file operates at 40units per pixel
     var ytop = 10000; 
     var spnums = { }, spcount = 1; 
     $.each(rlist, function(i, path) {
         var pl = path.getTotalLength(); 
         if (pl != 0.0) {
             var nsamples = Math.ceil(pl/samplerateunit); 
-            var p0 = path.getPointAtLength(0.0); 
             if (spnums[path.attr("stroke")] == undefined)
                 spnums[path.attr("stroke")] = spcount++; 
             var spnum = spnums[path.attr("stroke")]; 
-            llplt = [ "PU;SP"+spnum+";PA"+(p0.x*fac).toFixed(3)+","+(ytop-p0.y*fac).toFixed(3)+";PD"+(p0.x*fac).toFixed(3), (ytop-p0.y*fac).toFixed(3) ]; 
-            for (var i = 1; i <= nsamples; i++) {
-                var pal = path.getPointAtLength(pl*(i/nsamples)); 
-                llplt.push((pal.x*fac).toFixed(3), (ytop-pal.y*fac).toFixed(3)); 
+            lplt.push("SP"+spnum+";"); 
+            lplt.push("LT;"); 
+            for (var i = 0; i <= nsamples; i++) {
+                var p = path.getPointAtLength(pl*(i/nsamples)); 
+                lplt.push((i == 0 ? "PU" : "PD")+(p.x*fac).toFixed(3)+" "+(ytop-p.y*fac).toFixed(3)); 
             }
-            lplt.push(llplt.join(",")); 
         }
     }); 
+    lplt.push("SP0;"); 
     
     /*var xd = 240;  // make the test wedge
     var yd = Math.sin(Raphael.rad(2.5))*xd; 
@@ -45,8 +45,7 @@ function exportPLT()
     lplt.push("PU;SP4;PA"+cc(180,110)+";PD"+cc(180,110)+","+cc(180,90)); 
     lplt.push("PU;SP4;PA"+cc(100,100)+";PD"+cc(100,100)+","+cc(100+xd,100+yd)+","+cc(100+xd,100-yd)+","+cc(100,100)); */
     
-    lplt.push("PU"); 
-    $("#text_output").val(lplt.join(";\n"));
+    $("#text_output").val(lplt.join("\n"));
 }
 
 var mmpixwidth, mmpixheight; // to be used to scale back to output SVG
@@ -63,8 +62,8 @@ function WorkOutPixelScale(txt, td)
     console.log("facts:" + sheight+"  "+swidth + "  "+viewBox); 
     var mmheight = parseFloat(sheight); 
     var mmwidth = parseFloat(sheight); 
-    mmpixwidth = mmwidth/viewBox[2]; 
-    mmpixheight = mmheight/viewBox[3]; 
+    mmpixwidth = viewBox[2]/mmwidth; 
+    mmpixheight = viewBox[3]/mmheight; 
     $("#pixscaleX").text(mmpixwidth.toFixed(3)); 
     $("#pixscaleY").text(mmpixheight.toFixed(3)); 
 }
