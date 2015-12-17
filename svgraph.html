@@ -61,7 +61,7 @@ function WorkOutPixelScale(txt, td)
     }); 
     console.log("facts:" + sheight+"  "+swidth + "  "+viewBox); 
     var mmheight = parseFloat(sheight); 
-    var mmwidth = parseFloat(sheight); 
+    var mmwidth = parseFloat(swidth); 
     mmpixwidth = viewBox[2]/mmwidth; 
     mmpixheight = viewBox[3]/mmheight; 
     $("#pixscaleX").text(mmpixwidth.toFixed(3)); 
@@ -145,16 +145,23 @@ function MoveCollide()
     setTimeout(CollideBinary, 5); 
 }
 
+var bcancelimportSVG = false; 
 function importSVG(txt)
 {
+    console.log(txt.length+" bytes"); 
     var td = $(txt);
+    console.log("calc pixscale"); 
     WorkOutPixelScale(txt, td); 
     var dscalebar = "M20,20l"+(100/mmpixwidth)+",0l0,5M20,20l0,"+(100/mmpixheight)+"l5,0"; 
     paper1.path(dscalebar).attr("stroke", "#b66"); 
-
-    // do port the paths over to raphaeljs
-    td.find("path").each(function(i, v) { 
-        var vd = $(v); 
+    
+    var timeoutcyclems = 10; 
+    console.log("find paths"); 
+    var tdpaths = td.find("path");   // this stalls on really big files
+    var i = 0; 
+    bcancelimportSVG = false; 
+    function importSVGpathR() {
+        var vd = $(tdpaths[i]); 
         var d = vd.attr("d"); 
         if (true || d.search(/Z$/gi) != -1) {
             var transforms = [ vd.attr("transform") ]; 
@@ -173,7 +180,11 @@ function importSVG(txt)
             ); 
             rlist.push(path); 
         }
-    }); 
+        if ((++i < tdpaths.length) && !bcancelimportSVG)
+            setTimeout(importSVGpathR, timeoutcyclems); 
+        $("#readingcancel").text(i+"/"+tdpaths.length); 
+    };
+    importSVGpathR(); 
 }
 
 var Df; 
@@ -212,6 +223,7 @@ function setup()
         e.stopPropagation(); e.preventDefault(); 
         importSVGfiles(e.originalEvent.dataTransfer.files); 
     }); 
+    $("#readingcancel").click(function() { bcancelimportSVG = true; }); 
 
    
     // setup the raphael paper
@@ -239,6 +251,7 @@ input[type="text"] { width:6em }
 #text_output { height: 1em; width: 250px }
 .thing { background: red }
 .dropfileselected { background: yellow }
+#readingcancel:hover { background: red }
 </style>
 
 </head>
@@ -252,6 +265,7 @@ input[type="text"] { width:6em }
     <textarea id="text_output"></textarea>
     <input type="file" id="files" name="files[]" multiple />
     <span id="pixscale">pix-scaleX(mm):<span id="pixscaleX"></span>  pix-scaleY(mm):<span id="pixscaleY"></span></span>
+    <span id="readingcancel">0/0</span>
 </div>
 <div style="border: thin black solid" id="paper1"></div>
   
