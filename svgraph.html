@@ -15,37 +15,51 @@ function exportSVG()
     $("#text_output").val(details);
 }
 
+var bcancelExIm = false; 
 function exportPLT()
 {
-    var lplt = [ "IN;", "WU0;" ]; 
+    var lplt = [ "IN;\n", "WU0;\n" ]; 
     var samplerateunit = 0.9; 
     var fac = 40/mmpixwidth; // PLT file operates at 40units per pixel
     var ytop = 10000; 
     var spnums = { }, spcount = 1; 
-    $.each(rlist, function(i, path) {
+    var i = 0; 
+    bcancelExIm = false; 
+    $("#readingcancel").text("exportPLT"); 
+    function exportPLTpathR() {
+        console.log(i); 
+        console.log(rlist); 
+        var path = rlist[i]; 
+        console.log(path); 
         var pl = path.getTotalLength(); 
         if (pl != 0.0) {
             var nsamples = Math.ceil(pl/samplerateunit); 
             if (spnums[path.attr("stroke")] == undefined)
                 spnums[path.attr("stroke")] = spcount++; 
             var spnum = spnums[path.attr("stroke")]; 
-            lplt.push("SP"+spnum+";"); 
-            lplt.push("LT;"); 
-            for (var i = 0; i <= nsamples; i++) {
-                var p = path.getPointAtLength(pl*(i/nsamples)); 
-                lplt.push((i == 0 ? "PU" : "PD")+(p.x*fac).toFixed(3)+" "+(ytop-p.y*fac).toFixed(3)); 
+            lplt.push("SP"+spnum+";\n"); 
+            lplt.push("LT;\n"); 
+            for (var j = 0; j <= nsamples; j++) {
+                var p = path.getPointAtLength(pl*(j/nsamples)); 
+                lplt.push((j == 0 ? "PU" : "PD")+(p.x*fac).toFixed(3)+" "+(ytop-p.y*fac).toFixed(3)+"\n"); 
             }
         }
-    }); 
-    lplt.push("SP0;"); 
-    
-    /*var xd = 240;  // make the test wedge
-    var yd = Math.sin(Raphael.rad(2.5))*xd; 
-    function cc(x, y) { return (x*fac).toFixed(3)+","+(ytop-y*fac).toFixed(3); }
-    lplt.push("PU;SP4;PA"+cc(180,110)+";PD"+cc(180,110)+","+cc(180,90)); 
-    lplt.push("PU;SP4;PA"+cc(100,100)+";PD"+cc(100,100)+","+cc(100+xd,100+yd)+","+cc(100+xd,100-yd)+","+cc(100,100)); */
-    
-    $("#text_output").val(lplt.join("\n"));
+        if (bcancelExIm) {
+            return; 
+        } else if (++i < rlist.length) {
+            setTimeout(exportPLTpathR, 1); 
+        } else {
+            lplt.push("SP0;\n"); 
+            var a = document.createElement('a');
+            var blob = new Blob([lplt.join("\n")], {'type':"text/plain"});
+            a.href = window.URL.createObjectURL(blob);
+            a.download = "test.plt";
+            a.click();
+        }
+        $("#readingcancel").text(i+"/"+rlist.length); 
+    };
+    exportPLTpathR(); 
+    //$("#text_output").val(lplt.join("\n"));
 }
 
 var mmpixwidth, mmpixheight; // to be used to scale back to output SVG
@@ -146,7 +160,6 @@ function MoveCollide()
     setTimeout(CollideBinary, 5); 
 }
 
-var bcancelimportSVG = false; 
 function importSVG(txt)
 {
     console.log(txt.length+" bytes"); 
@@ -160,7 +173,7 @@ function importSVG(txt)
     console.log("find paths"); 
     var tdpaths = td.find("path");   // this stalls on really big files
     var i = 0; 
-    bcancelimportSVG = false; 
+    bcancelExIm = false; 
     function importSVGpathR() {
         var vd = $(tdpaths[i]); 
         var d = vd.attr("d"); 
@@ -181,7 +194,7 @@ function importSVG(txt)
             ); 
             rlist.push(path); 
         }
-        if ((++i < tdpaths.length) && !bcancelimportSVG)
+        if ((++i < tdpaths.length) && !bcancelExIm)
             setTimeout(importSVGpathR, timeoutcyclems); 
         $("#readingcancel").text(i+"/"+tdpaths.length); 
     };
@@ -224,7 +237,7 @@ function setup()
         e.stopPropagation(); e.preventDefault(); 
         importSVGfiles(e.originalEvent.dataTransfer.files); 
     }); 
-    $("#readingcancel").click(function() { bcancelimportSVG = true; }); 
+    $("#readingcancel").click(function() { bcancelExIm = true; }); 
     $("#scaledouble").click(function() { $("#scaledouble").text($("#scaledouble").text() == "*2" ? "/2" : "*2"); }); 
     $("#scale").click(function() { 
         paper1scale *= ($("#scaledouble").text() == "*2" ? 2 : 0.5); 
