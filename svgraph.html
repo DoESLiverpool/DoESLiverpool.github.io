@@ -58,7 +58,7 @@ function exportPLT()
     exportPLTpathR(); 
 }
 
-var mmpixwidth, mmpixheight; // to be used to scale back to output SVG
+var mmpixwidth, mmpixheight; // to be used to scale back to output SVG (not for version 0.43)
 var spnums = { }, spcount = 0; 
 function WorkOutPixelScale(txt, td) 
 {
@@ -98,6 +98,8 @@ function TestCollision(dx, dy)
 
 var paper1 = null; 
 var paper1scale = 1; 
+var filenamelist = [ ]; 
+var rlistbyfnum = [ ]; 
 var rlist = [ ]; 
 var pathselected = null; 
 var opts; 
@@ -157,33 +159,52 @@ function MoveCollide()
     setTimeout(CollideBinary, 5); 
 }
 
-var Dtd; 
-function importSVG(txt)
+var Dtxt; 
+function importSVG(txt, fnum)
 {
     console.log(txt.length+" bytes"); 
+    Dtxt = txt; 
+    var tsvg = $($(txt).children()[0]).parent(); // seems not to work directly
+
     var td = $(txt);
-    Dtd = td; 
     console.log("calc pixscale"); 
     WorkOutPixelScale(txt, td); 
     var dscalebar = "M20,20l"+(100*mmpixwidth)+",0l0,5M20,20l0,"+(100*mmpixheight)+"l5,0"; 
     paper1.path(dscalebar).attr("stroke", "#b66"); 
-    
-    var timeoutcyclems = 10; 
-    console.log("find paths"); 
-    var tdpaths = td.find("path");   // this stalls on really big files
-    var i = 0; 
+
     bcancelExIm = false; 
+    var timeoutcyclems = 10; 
+    var pback = {pos:-1, raphtranslist:[""], cmatrix:Raphael.matrix() };
+    var pstack = [ ]; 
+    var cstack = [ tsvg ]; 
     function importSVGpathR() {
-        var vd = $(tdpaths[i]); 
-        var d = vd.attr("d"); 
-        if (true || d.search(/Z$/gi) != -1) {
-            var transforms = [ vd.attr("transform") ]; 
-            vd.parents().each(function(j, p) { transforms.push($(p).attr("transform")); }); 
-            var stransforms = [ ]; 
-            $.each(transforms.reverse(), function(j, t) {  if (t)  stransforms.push(t.replace(/([mtrs])\w+\s*\(([^\)]*)\)/gi, function(a, b, c) { return b.toLowerCase()+c+(b.match(/s/i) ? ",0,0" : ""); } )) }); 
-            d = Raphael.transformPath(d, stransforms.join("")); 
-            var stroke = vd.attr("stroke") || vd.css("stroke"); 
-            var path = paper1.path(d);
+        while (cstack.length == pback.pos) 
+            pback = pstack.pop(); 
+        if (cstack.length == 0)
+            return; 
+        var c = cstack.pop(); 
+        var tag = c.prop("tagName").toLowerCase(); 
+        var raphtranslist = pback.raphtranslist; 
+        var cmatrix = pback.cmatrix; 
+        if (c.attr("transform")) {
+            raphtranslist = raphtranslist.slice(); 
+            raphtranslist.push(c.attr("transform").replace(/([mtrs])\w+\s*\(([^\)]*)\)/gi, function(a, b, c) { return b.toLowerCase()+c+(b.match(/s/i) ? ",0,0" : ""); } )); 
+            cmatrix = paper1.path().transform(raphtranslist.join("")).matrix; 
+        }
+        if (tag == "pattern") {
+            console.log("skip pattern"); 
+        } else if (tag != "path") {
+            pstack.push(pback); 
+            pback = { pos:cstack.length, raphtranslist:raphtranslist, cmatrix:cmatrix }; 
+            var cs = c.children(); 
+            for (var i = cs.length - 1; i >= 0; i--) 
+                cstack.push($(cs[i]));   // in reverse order for the stack
+        } else {
+            var d = c.attr("d"); 
+            //d = Raphael.transformPath(d, raphtranslist.join("")); 
+            var dtrans = Raphael.mapPath(d, cmatrix); 
+            var stroke = c.attr("stroke") || c.css("stroke"); 
+            var path = paper1.path(dtrans); 
             path.attr({stroke:stroke, "stroke-width":2, fill:"#00f", "fill-opacity":"10%"}); 
 
             var brotatemode = false; 
@@ -192,18 +213,18 @@ function importSVG(txt)
                 function(x, y, e)  { brotatemode = e.ctrlKey; pathselected = path; }, 
                 function() { path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); path.transform("t0,0") }
             ); 
-            
-            rlist.push(path); 
             var spcol = path.attr("stroke");  
             if (spnums[spcol] == undefined) {
                 spnums[spcol] = ++spcount; 
                 $("#spnumcols").append($('<span id="spnum'+spcount+'">X</span>').css("background", spcol)); 
             }
+            rlist.push(path); 
+            rlistbyfnum[fnum].push({path:path, spnum:spnums[spcol], d:d}); 
         }
-        if ((++i < tdpaths.length) && !bcancelExIm)
+        $("#readingcancel").text(rlist.length+"/"+cstack.length); 
+        if (!bcancelExIm)
             setTimeout(importSVGpathR, timeoutcyclems); 
-        $("#readingcancel").text(i+"/"+tdpaths.length); 
-    };
+    }
     importSVGpathR(); 
 }
 
@@ -216,9 +237,12 @@ function importSVGfiles(files)
             alert(f.name+" not SVG file: "+f.type); 
             return;
         }
+        var fnum = filenamelist.length; 
+        filenamelist.push(f.name); 
+        rlistbyfnum.push([ ]); 
         var reader = new FileReader();
-        reader.onload = (function(e) { importSVG(reader.result); }); 
-        reader.readAsText(f);
+        reader.onload = (function(e) { importSVG(reader.result, fnum); }); 
+        reader.readAsText(f); 
     }); 
 }
 
@@ -301,6 +325,10 @@ $(document).ready(setup);   // function to call only *after* page has finished l
 
 <p>Work to do:
 *change td.find("path") so it iterates through children rather than global slow find function and keeps stack of transforms
+*ignore pattern flag
+*guess 
+*join paths to make closed contours - specify which colour is the outer one
+*second
 *use colours or picking to specify the cutting curves
 *automatic grouping and closing curves
 *associate the etching curves with those cutting curves we are in by group
