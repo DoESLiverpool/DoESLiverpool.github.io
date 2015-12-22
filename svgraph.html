@@ -159,50 +159,237 @@ function MoveCollide()
     setTimeout(CollideBinary, 5); 
 }
 
+var Drlends, Drlidat, Djdseqs; 
+function FindClosedPathSequences(rlistb, closedist)  // also take in spnums known not external
+{
+    // create arrays of closest links
+    var closedistSq = closedist*closedist; 
+    var rlends = [ ]; // [ x, y, i, bfore ]
+    var rlidat = [ ]; // index*2 front back
+    Drlends = rlends; 
+    Drlidat = rlidat; 
+    for (var i = 0; i < rlistb.length; i++) {
+        var rl = rlistb[i]; 
+        var pseq = rl.path.attrs.path; 
+        var seg0 = pseq[0]; 
+        rlends.push([ seg0[1], seg0[2], i, false ]); 
+        var segE = pseq[pseq.length - 1]; 
+        rlends.push([ segE[segE.length-2], segE[segE.length-1], i, true ]); 
+        rlidat.push([ ], [ ]); // each will be a list of cross connections [d, j]
+    } 
+    rlends.sort(); 
+    var rlconns = 0; 
+    for (var j = 0; j < rlends.length - 1; j++) {
+        var rle = rlends[j]; 
+        var xB = rle[0], yB = rle[1]; 
+        var jd = rle[2]*2 + (rle[3] ? 1 : 0); 
+        for (var j1 = j+1; ((j1 < rlends.length) && (rlends[j1][0] <= xB + closedist)); j1++) {
+            var rle1 = rlends[j1]; 
+            var dx = rle1[0] - xB;
+            var dy = rle1[1] - yB; 
+            var dCsq = dx*dx + dy*dy; 
+            if (dCsq <= closedistSq) {
+                var jd1 = rle1[2]*2 + (rle1[3] ? 1 : 0); 
+                rlidat[jd].push([dCsq, jd1]); 
+                rlidat[jd1].push([dCsq, jd]); 
+                rlconns++; 
+            }
+        }
+    }
+
+    // sort adjacencies at endpoints by distance
+    for (var j = 0; j < rlidat.length - 1; j++)  rlidat[j].sort(); 
+
+    function disconnectJD1(jd, jd1) {
+        var rlid1 = rlidat[jd1]; 
+        console.log("disconjd", jd, jd1, rlid1.slice()); 
+        var d1i; 
+        for (d1i = rlid1.length - 1; d1i >= 0; d1i--) {
+            if (rlid1[d1i][1] == jd)
+                break; 
+        }
+        for (++d1i ; d1i < rlid1.length; d1i++)
+            rlid1[d1i-1] = rlid1[d1i]; 
+        rlid1.pop(); 
+    }
+    
+    // extract closed sequences of paths that join up
+    var jdseqs = [ ];  
+    Djdseqs = jdseqs; 
+    var i = 0; 
+    var Dloops = rlconns*2 + rlistb.length; 
+    while (i < rlistb.length) {
+        console.assert(Dloops-- >= 0); 
+        if (rlidat[i*2].length == 0) {
+            if (rlidat[i*2 + 1].length == 0) {
+                i++; 
+            } else {
+                var jd = i*2 + 1; 
+                while (rlidat[jd].length != 0) {
+                    disconnectJD1(jd, rlidat[jd].pop()[1]); 
+                }
+            }
+        } else if (rlidat[i*2 + 1].length == 0) {
+            var jd = i*2; 
+            while (rlidat[jd].length != 0) {
+                disconnectJD1(jd, rlidat[jd].pop()[1]); 
+            }
+        } else {
+            var jdseq = [ ]; 
+            var jd0 = i*2 + 1; 
+            var jd = jd0; 
+            while (true) {
+                if (rlidat[jd].length == 0) {
+                    var jdl = jdseq.pop(); 
+                    console.log("removing jdl", jdl, jd0); 
+                    disconnectJD1(jdl, rlidat[jdl].shift()[1]); 
+                    break; 
+                } else if (jdseq.length > rlistb.length - i*0) {
+                    console.log("removing jd0 semiloop", jd0); 
+                    disconnectJD1(jd0, rlidat[jd0].shift()[1]); 
+                    break; 
+                } else {
+                    jdseq.push(jd); 
+                    var jd1 = rlidat[jd][0][1];
+                    jd = jd1 + ((jd1%2) == 1 ? -1 : 1); 
+                    if (jd == jd0) 
+                        break; 
+                }
+            }
+            if (jd == jd0) {
+                console.log("found cycle", jdseq); 
+                jdseqs.push(jdseq); 
+                for (var ijd = 0; ijd < jdseq.length; ijd++) {
+                    var jd = jdseq[ijd]; 
+                    while (rlidat[jd].length != 0) {
+                        disconnectJD1(jd, rlidat[jd].pop()[1]); 
+                    }
+                    jd1 = jd + ((jd%2) == 1 ? -1 : 1); 
+                    while (rlidat[jd1].length != 0) {
+                        disconnectJD1(jd1, rlidat[jd1].pop()[1]); 
+                    }
+                }
+                i++; 
+            } 
+        }
+    }
+
+    var rlcycnum = new Array(rlistb.length); 
+    var cycseqs = [ ]; 
+    for (var j = 0; j < jdseqs.length; j++) {
+        var jdseq = jdseqs[j]; 
+        var bpaths = [ ]; // bpaths:[{path:path, spnum:spnums[spcol], d:d, cmatrix:cmatrix, ( bfore:bfore )}]
+        var sarea = [ ]; 
+        for (var ijd = 0; ijd < jdseq.length; ijd++) {
+            var jd = jdseq[ijd]; 
+            var i = jd/2|0; 
+            var bfore = ((jd%2)==1); 
+            var bpath = rlistb[i]; 
+            bpath.bfore = bfore;  // new attribute
+            bpaths.push(bpath); 
+            var spath = bpath.path.attr("path"); 
+            console.assert(spath[0][0] == "M"); 
+            var px, py; 
+            if (bfore) {
+                if (ijd == 0) {
+                    sarea.push(spath[0]); 
+                } else if ((px != spath[0][1]) || (py != spath[0][2])) {
+                    sarea.push(["L", spath[0][1], spath[0][2]]); 
+                }
+                for (var k = 1; k < spath.length; k++) 
+                    sarea.push(spath[k]); 
+                var lseq = spath[spath.length-1]; 
+                px = lseq[lseq.length - 2]; 
+                py = lseq[lseq.length - 1]; 
+            } else {
+                console.assert(ijd != 0); 
+                var lseq = spath[spath.length-1]; 
+                if ((px != lseq[lseq.length - 2]) || (py != lseq[lseq.length - 1])) {
+                    sarea.push(["L", lseq[lseq.length - 2], lseq[lseq.length - 1]]); 
+                }
+                for (var k = spath.length - 1; k > 0; k--) {
+                    var lseq0 = spath[k-1]; 
+                    var lseq1 = spath[k]; 
+                    var nseq = [ lseq1[0] ]; 
+                    for (var l = lseq1.length - 4; l > 0; l -= 2)
+                        nseq.push(lseq1[l], lseq1[l + 1]); 
+                    nseq.push(lseq0[lseq0.length - 2], lseq0[lseq0.length - 1]); 
+                    sarea.push(nseq); 
+                }
+                px = spath[0][1]; 
+                py = spath[0][2]; 
+            }
+            console.assert(rlcycnum[i] === undefined); 
+            rlcycnum[i] = j; 
+        }
+        console.log(sarea); 
+        console.assert(sarea[0][0] == "M"); 
+        sarea.push(["L", sarea[0][1], sarea[0][2]]); 
+        var parea = paper1.path(sarea); 
+        parea.attr({stroke:"white", fill:"#0f0", "fill-opacity":"10%"}); 
+        cycseqs.push({bpaths:bpaths, sarea:sarea, parea:parea}); 
+    }
+    
+    var pathssinglets = [ ]; 
+    for (var i = 0; i < rlcycnum.length; i++) {
+        if (rlcycnum[i] === undefined) {
+            pathssinglets.push(i); 
+            rlistb[i].path.attr("stroke", "red"); 
+        }
+    }
+    console.log("singlets", pathssinglets); 
+    
+// check extra empty stroke area in shapes
+// then do this inside/outside stuff to nest them
+// make area cycles with islands.
+// produce objects with these cycles and associated engraving from the remainder code
+// apply the move and dragging systems to these objects
+
+}
+
 function processimportedSVG(fnum)
 {
+    // first join paths up
     var rlistb = rlistbyfnum[fnum]; 
-    var rlclosed = [ ]; 
-    var rlendpoints = [ ]; 
-    $.each(rlistb, function(i, v) { 
-        var pseq = v.path.attrs.path; 
-        var seg0 = pseq[0]; 
-        var segE = pseq[pseq.length - 1]; 
-        var x0 = seg0[1], y0 = seg0[2];  
-        var x1 = segE[segE.length-2], y1 = segE[segE.length-1];  
-        if ((x0 == x1) && (y0 == y1)) {
-            rlclosed.push(v); 
-        } else {
-            console.log("open "+x0+","+y0+"  "+x1+","+y1); 
-        }
-    }); 
-    console.log("closed paths "+rlclosed.length+" of "+rlistb.length); 
-    // .push({path:path, spnum:spnums[spcol], d:d}); 
+    var closedist = 3.2; 
+    var rlclosedsequences = FindClosedPathSequences(rlistb, closedist); 
+    
+//path.isPointInside
+
+
+    // find matching by closest and put into the rlclosed set, favour only cycles, not dead ends
+    // sort the closed set (and open paths) by containment
+    // mark certain colours as engraving type and recalculate containment
+    // sets of { Outer, [Inners], [engravings] }
 }
 
 function processSingleSVGpath(rlistb, d, cmatrix, stroke)
 {
-    //d = Raphael.transformPath(d, raphtranslist.join("")); 
-    var dtrans = Raphael.mapPath(d, cmatrix); 
+    var dtrans = Raphael.mapPath(d, cmatrix); // Raphael.transformPath(d, raphtranslist.join("")); 
+    if (dtrans.length <= 1)
+        return; // skip
+    if (stroke == "none")
+        return; // skip
 
     // this is the place to separate out the paths by M positions
-    
     var path = paper1.path(dtrans); 
     path.attr({stroke:stroke, "stroke-width":2, fill:"#00f", "fill-opacity":"10%"}); 
 
-    var brotatemode = false; 
-    path.drag(
-        function(dx, dy) { path.transform(brotatemode ? "r"+(dx*0.25) : "t"+(dx*paper1scale)+","+(dy*paper1scale)); }, 
-        function(x, y, e)  { brotatemode = e.ctrlKey; pathselected = path; }, 
-        function() { path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); path.transform("t0,0") }
-    ); 
     var spcol = path.attr("stroke");  
     if (spnums[spcol] == undefined) {
         spnums[spcol] = ++spcount; 
         $("#spnumcols").append($('<span id="spnum'+spcount+'">X</span>').css("background", spcol)); 
     }
     rlist.push(path); 
-    rlistb.push({path:path, spnum:spnums[spcol], d:d}); 
+    rlistb.push({path:path, spnum:spnums[spcol], d:d, cmatrix:cmatrix}); 
+
+    // should be done after things are closed, joined up and associated with their areas
+    var brotatemode = false; 
+    path.drag(
+        function(dx, dy) { path.transform(brotatemode ? "r"+(dx*0.5) : "t"+(dx*paper1scale)+","+(dy*paper1scale)); }, 
+        function(x, y, e)  { brotatemode = e.ctrlKey; pathselected = path; }, 
+        function() { path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); path.transform("t0,0") }
+    ); 
 }
 
 var Dtxt; 
@@ -357,15 +544,22 @@ $(document).ready(setup);   // function to call only *after* page has finished l
 <p>Code is <a href="https://github.com/goatchurchprime/doesliverpool.github.io/">here</a></p>
 
 <p>Work to do:
-*select stock shape and type of material which is always underneath
-*join paths to make closed contours - specify which colour is the outer one
+*select stock shape and type of material which is always underneath (allow for multiple sheets)
 *should split paths that have m in them
-*use colours or picking to specify the cutting curves
+*join paths to make closed contours - specify which colour is the outer one
+*use colours or picking to specify the engraving curves
 *automatic grouping and closing curves
 *associate the etching curves with those cutting curves we are in by group
 *drop-down of the sizes of stock (ply) which gets plotted in brown as the area, and material (which generates the lookup for the feeds and speeds)
 *estimates of time to cut, which can be used to check if order of cut improving.  do cuts after each etch so abort still have working results
 *moving around by recording the transforms so can rerender and render the associated etching curves
+*slide things to the right onto the area if off the sides
+*begin relay packing within area and clearance bits
+*export that ply sheet and remove everything on it
+*allow this file to serve from BB, which should be on the net somewhere accessible to the Laser Machine
+*colour bits by stock material (colour, thickness, type)
+*twisted banks and serves out components for the cutter, previews what's being calculated elsewhere.  
+*layouts are saved as json objects and reimported, merged, etc.
 </p>
 
 </body>
