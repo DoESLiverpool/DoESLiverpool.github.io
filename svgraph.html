@@ -202,7 +202,7 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
 
     function disconnectJD1(jd, jd1) {
         var rlid1 = rlidat[jd1]; 
-        console.log("disconjd", jd, jd1, rlid1.slice()); 
+        //console.log("disconjd", jd, jd1, rlid1.slice()); 
         var d1i; 
         for (d1i = rlid1.length - 1; d1i >= 0; d1i--) {
             if (rlid1[d1i][1] == jd)
@@ -241,11 +241,11 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
             while (true) {
                 if (rlidat[jd].length == 0) {
                     var jdl = jdseq.pop(); 
-                    console.log("removing jdl", jdl, jd0); 
+                    //console.log("removing jdl", jdl, jd0); 
                     disconnectJD1(jdl, rlidat[jdl].shift()[1]); 
                     break; 
                 } else if (jdseq.length > rlistb.length - i*0) {
-                    console.log("removing jd0 semiloop", jd0); 
+                    //console.log("removing jd0 semiloop", jd0); 
                     disconnectJD1(jd0, rlidat[jd0].shift()[1]); 
                     break; 
                 } else {
@@ -257,7 +257,7 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
                 }
             }
             if (jd == jd0) {
-                console.log("found cycle", jdseq); 
+                //console.log("found cycle", jdseq); 
                 jdseqs.push(jdseq); 
                 for (var ijd = 0; ijd < jdseq.length; ijd++) {
                     var jd = jdseq[ijd]; 
@@ -322,7 +322,6 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
             console.assert(rlcycnum[i] === undefined); 
             rlcycnum[i] = j; 
         }
-        console.log(sarea); 
         console.assert(sarea[0][0] == "M"); 
         sarea.push(["L", sarea[0][1], sarea[0][2]]); 
         var parea = paper1.path(sarea); 
@@ -334,17 +333,48 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
     for (var i = 0; i < rlcycnum.length; i++) {
         if (rlcycnum[i] === undefined) {
             pathssinglets.push(i); 
-            rlistb[i].path.attr("stroke", "red"); 
+            rlistb[i].path.attr("stroke-dasharray", "5,5"); 
         }
     }
     console.log("singlets", pathssinglets); 
+
+    // should be done after things are closed, joined up and associated with their areas
+    // move to outer function
+    $.each(cycseqs, function(i, cycseq) {
+        var brotatemode = false; 
+        var cx = 0, cy = 0; 
+        var lpaths = [ cycseq.parea ]; 
+        for (var i = 0; i < cycseq.bpaths.length; i++)
+            lpaths.push(cycseq.bpaths[i].path); 
+            
+        cycseq.parea.drag(
+            function(dx, dy) { 
+                var tstr = (brotatemode ? "r"+(dx*0.5)+","+cx+","+cy : "t"+(dx*paper1scale)+","+(dy*paper1scale)); 
+                $.each(lpaths, function(i, path) { 
+                    path.transform(tstr); 
+                }); 
+            }, 
+            function(x, y, e)  { 
+                brotatemode = e.ctrlKey; 
+                pathselected = cycseq; 
+                var bbox = cycseq.parea.getBBox(); 
+                cx = (bbox.x + bbox.x2)/2; 
+                cy = (bbox.y + bbox.y2)/2; 
+            }, 
+            function() { 
+                $.each(lpaths, function(i, path) { 
+                    path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); 
+                    path.transform("t0,0") 
+                }); 
+            }
+        ); 
+    }); 
     
-// check extra empty stroke area in shapes
 // then do this inside/outside stuff to nest them
 // make area cycles with islands.
 // produce objects with these cycles and associated engraving from the remainder code
 // apply the move and dragging systems to these objects
-
+    return cycseqs; 
 }
 
 function processimportedSVG(fnum)
@@ -352,7 +382,7 @@ function processimportedSVG(fnum)
     // first join paths up
     var rlistb = rlistbyfnum[fnum]; 
     var closedist = 3.2; 
-    var rlclosedsequences = FindClosedPathSequences(rlistb, closedist); 
+    var cycseqs = FindClosedPathSequences(rlistb, closedist); 
     
 //path.isPointInside
 
@@ -373,7 +403,7 @@ function processSingleSVGpath(rlistb, d, cmatrix, stroke)
 
     // this is the place to separate out the paths by M positions
     var path = paper1.path(dtrans); 
-    path.attr({stroke:stroke, "stroke-width":2, fill:"#00f", "fill-opacity":"10%"}); 
+    path.attr({stroke:stroke, "stroke-width":2}); 
 
     var spcol = path.attr("stroke");  
     if (spnums[spcol] == undefined) {
@@ -382,23 +412,16 @@ function processSingleSVGpath(rlistb, d, cmatrix, stroke)
     }
     rlist.push(path); 
     rlistb.push({path:path, spnum:spnums[spcol], d:d, cmatrix:cmatrix}); 
-
-    // should be done after things are closed, joined up and associated with their areas
-    var brotatemode = false; 
-    path.drag(
-        function(dx, dy) { path.transform(brotatemode ? "r"+(dx*0.5) : "t"+(dx*paper1scale)+","+(dy*paper1scale)); }, 
-        function(x, y, e)  { brotatemode = e.ctrlKey; pathselected = path; }, 
-        function() { path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); path.transform("t0,0") }
-    ); 
 }
 
-var Dtxt; 
+var Dtxt, Dtsvg; 
 function importSVG(txt, fnum)
 {
     console.log(txt.length+" bytes"); 
     Dtxt = txt; 
     var tsvg = $($(txt).children()[0]).parent(); // seems not to work directly
-
+    Dtsvg = tsvg; 
+    
     var td = $(txt);
     console.log("calc pixscale"); 
     WorkOutPixelScale(txt, td); 
@@ -410,6 +433,10 @@ function importSVG(txt, fnum)
     var pback = {pos:-1, raphtranslist:[""], cmatrix:Raphael.matrix() };
     var pstack = [ ]; 
     var cstack = [ tsvg ]; 
+    var mclassstroke = { "st2":"red" }; 
+    tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{[^\}]*stroke:\s*([^;\s\}]+)/gi, function(a, b, c) { mclassstroke[b] = c; }); 
+    console.log(mclassstroke); 
+    
     function importSVGpathR() {
         while (cstack.length == pback.pos) 
             pback = pstack.pop(); 
@@ -428,14 +455,34 @@ function importSVG(txt, fnum)
         }
         if (tag == "pattern") {
             console.log("skip pattern"); 
-        } else if (tag != "path") {
+        } else if ((tag == "polygon") || (tag == "polygline")) {
+            var ppts = c.attr("points").split(/\s+|,/);
+            var x0 = ppts.shift(); 
+            var y0 = ppts.shift();
+            var d = 'M'+x0+','+y0+'L'+ppts.join(' ')+(tag == "polygon" ? "Z" : ""); 
+            processSingleSVGpath(rlistbyfnum[fnum], d, cmatrix, c.attr("stroke") || c.css("stroke") || mclassstroke[c.attr("class")]); 
+        } else if (tag == "circle") {
+            var cx = parseFloat(c.attr("cx"));
+            var cy = parseFloat(c.attr("cy")); 
+            var r = parseFloat(c.attr("r")); 
+            var d = "M"+(cx-r)+","+cy+"A"+r+","+r+",0,0,1,"+cx+","+(cy-r)+"A"+r+","+r+",0,1,1,"+(cx-r)+","+cy; 
+            console.log(d); 
+            processSingleSVGpath(rlistbyfnum[fnum], d, cmatrix, c.attr("stroke") || c.css("stroke") || mclassstroke[c.attr("class")]); 
+        } else if (tag == "rect") {
+            var x0 = parseFloat(c.attr("x"));
+            var y0 = parseFloat(c.attr("y")); 
+            var x1 = x0 + parseFloat(c.attr("width")); 
+            var y1 = y0 + parseFloat(c.attr("height")); 
+            var d = "M"+x0+","+y0+"L"+x0+","+y1+" "+x1+","+y1+" "+x1+","+y0+"Z"; 
+            processSingleSVGpath(rlistbyfnum[fnum], d, cmatrix, c.attr("stroke") || c.css("stroke") || mclassstroke[c.attr("class")]); 
+        } else if (tag == "path") {
+            processSingleSVGpath(rlistbyfnum[fnum], c.attr("d"), cmatrix, c.attr("stroke") || c.css("stroke") || mclassstroke[c.attr("class")]); 
+        } else {
             pstack.push(pback); 
             pback = { pos:cstack.length, raphtranslist:raphtranslist, cmatrix:cmatrix }; 
             var cs = c.children(); 
             for (var i = cs.length - 1; i >= 0; i--) 
                 cstack.push($(cs[i]));   // in reverse order for the stack
-        } else {
-            processSingleSVGpath(rlistbyfnum[fnum], c.attr("d"), cmatrix, c.attr("stroke") || c.css("stroke")); 
         }
         if (!bcancelExIm) {
             $("#readingcancel").text(rlist.length+"/"+cstack.length); 
@@ -447,6 +494,7 @@ function importSVG(txt, fnum)
     importSVGpathR(); 
 }
 
+// handle EPS files using call out to server to execute pstoedit 
 function importSVGfiles(files)
 {
     $.each(files, function(i, f) { 
@@ -544,13 +592,12 @@ $(document).ready(setup);   // function to call only *after* page has finished l
 <p>Code is <a href="https://github.com/goatchurchprime/doesliverpool.github.io/">here</a></p>
 
 <p>Work to do:
+*EPS conversion using pstoedit on the twisted server
 *select stock shape and type of material which is always underneath (allow for multiple sheets)
-*should split paths that have m in them
+*drop-down of the sizes of stock (ply) which gets plotted in brown as the area, and material (which generates the lookup for the feeds and speeds)
 *join paths to make closed contours - specify which colour is the outer one
 *use colours or picking to specify the engraving curves
-*automatic grouping and closing curves
 *associate the etching curves with those cutting curves we are in by group
-*drop-down of the sizes of stock (ply) which gets plotted in brown as the area, and material (which generates the lookup for the feeds and speeds)
 *estimates of time to cut, which can be used to check if order of cut improving.  do cuts after each etch so abort still have working results
 *moving around by recording the transforms so can rerender and render the associated etching curves
 *slide things to the right onto the area if off the sides
