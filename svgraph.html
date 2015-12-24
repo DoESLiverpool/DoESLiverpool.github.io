@@ -159,11 +159,77 @@ function MoveCollide()
     setTimeout(CollideBinary, 5); 
 }
 
-var Drlends, Drlidat, Djdseqs; 
+
+function dpathappendsegs(darea, dpath, breversed) 
+{
+    if (breversed) {
+        for (var k = dpath.length - 1; k > 0; k--) {
+            var lseq0 = dpath[k-1]; 
+            var lseq1 = dpath[k]; 
+            var nseq = [ lseq1[0] ]; 
+            for (var l = lseq1.length - 4; l > 0; l -= 2)
+                nseq.push(lseq1[l], lseq1[l + 1]); 
+            nseq.push(lseq0[lseq0.length - 2], lseq0[lseq0.length - 1]); 
+            darea.push(nseq); 
+        }
+    } else {
+        for (var k = 1; k < dpath.length; k++) 
+            darea.push(dpath[k]); 
+    }
+}
+
+function FindPathOrientation(darea)
+{
+    var iL = 1; 
+    for (var i = 1; i < darea.length; i++) {
+        if (darea[i][darea[i].length - 2] < darea[iL][darea[iL].length - 2]) {
+            iL = i; 
+        }
+    }
+    var x = darea[iL][darea[iL].length - 2]; 
+    var y = darea[iL][darea[iL].length - 1]; 
+    var xf, yf, xb, yb; 
+    var iF = iL + 1; 
+    while (iF != iL) {
+        if (iF == darea.length)
+            iF = 0; 
+        xF = darea[iF][darea[iF].length - 2]; 
+        yF = darea[iF][darea[iF].length - 1]; 
+        if ((xF != x) || (yF != y))
+            break; 
+        iF++; 
+    }
+    var iB = iL - 1; 
+    while (iB != iL) {
+        if (iB == -1) {
+            iB = darea.length - 1; 
+            if (iB == iL)
+                break; 
+        }
+        xB = darea[iB][darea[iB].length - 2]; 
+        yB = darea[iB][darea[iB].length - 1]; 
+        if ((xB != x) || (yB != y))
+            break; 
+        iB--; 
+    }
+        
+    var vxF = xF - x;  
+    var vyF = yF - y;  
+    console.assert(vxF >= 0.0); 
+    var diamondF = vyF / (Math.abs(vyF) + vxF); 
+    var vxB = xB - x;  
+    var vyB = yB - y;  
+    console.assert(vxB >= 0.0); 
+    var diamondB = vyB / (Math.abs(vyB) + vxB); 
+    return diamondB <= diamondF; 
+}
+
+var Drlends, Drlidat, Djdseqs, Dcycseqs; 
 function FindClosedPathSequences(rlistb, closedist)  // also take in spnums known not external
 {
     // create arrays of closest links
     var closedistSq = closedist*closedist; 
+    var bsamespnumconnections = true; 
     var rlends = [ ]; // [ x, y, i, bfore ]
     var rlidat = [ ]; // index*2 front back
     Drlends = rlends; 
@@ -190,15 +256,18 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
             var dCsq = dx*dx + dy*dy; 
             if (dCsq <= closedistSq) {
                 var jd1 = rle1[2]*2 + (rle1[3] ? 1 : 0); 
-                rlidat[jd].push([dCsq, jd1]); 
-                rlidat[jd1].push([dCsq, jd]); 
-                rlconns++; 
+                if (!bsamespnumconnections || (rlistb[rle[2]].spnum == rlistb[rle1[2]].spnum)) {
+                    rlidat[jd].push([dCsq, jd1]); 
+                    rlidat[jd1].push([dCsq, jd]); 
+                    rlconns++; 
+                }
             }
         }
     }
 
     // sort adjacencies at endpoints by distance
-    for (var j = 0; j < rlidat.length - 1; j++)  rlidat[j].sort(); 
+    for (var j = 0; j < rlidat.length - 1; j++)  
+        rlidat[j].sort(); 
 
     function disconnectJD1(jd, jd1) {
         var rlid1 = rlidat[jd1]; 
@@ -275,11 +344,11 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
     }
 
     var rlcycnum = new Array(rlistb.length); 
-    var cycseqs = [ ]; 
+    var cycseqs = [ ]; // [{bpaths, darea, parea}] 
     for (var j = 0; j < jdseqs.length; j++) {
         var jdseq = jdseqs[j]; 
-        var bpaths = [ ]; // bpaths:[{path:path, spnum:spnums[spcol], d:d, cmatrix:cmatrix, ( bfore:bfore )}]
-        var sarea = [ ]; 
+        var bpaths = [ ]; // bpaths:[{path, spnum, d, cmatrix(, bfore)}]
+        var darea = [ ]; 
         for (var ijd = 0; ijd < jdseq.length; ijd++) {
             var jd = jdseq[ijd]; 
             var i = jd/2|0; 
@@ -292,12 +361,11 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
             var px, py; 
             if (bfore) {
                 if (ijd == 0) {
-                    sarea.push(spath[0]); 
+                    darea.push(spath[0]); 
                 } else if ((px != spath[0][1]) || (py != spath[0][2])) {
-                    sarea.push(["L", spath[0][1], spath[0][2]]); 
+                    darea.push(["L", spath[0][1], spath[0][2]]); 
                 }
-                for (var k = 1; k < spath.length; k++) 
-                    sarea.push(spath[k]); 
+                dpathappendsegs(darea, spath, false); 
                 var lseq = spath[spath.length-1]; 
                 px = lseq[lseq.length - 2]; 
                 py = lseq[lseq.length - 1]; 
@@ -305,28 +373,20 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
                 console.assert(ijd != 0); 
                 var lseq = spath[spath.length-1]; 
                 if ((px != lseq[lseq.length - 2]) || (py != lseq[lseq.length - 1])) {
-                    sarea.push(["L", lseq[lseq.length - 2], lseq[lseq.length - 1]]); 
+                    darea.push(["L", lseq[lseq.length - 2], lseq[lseq.length - 1]]); 
                 }
-                for (var k = spath.length - 1; k > 0; k--) {
-                    var lseq0 = spath[k-1]; 
-                    var lseq1 = spath[k]; 
-                    var nseq = [ lseq1[0] ]; 
-                    for (var l = lseq1.length - 4; l > 0; l -= 2)
-                        nseq.push(lseq1[l], lseq1[l + 1]); 
-                    nseq.push(lseq0[lseq0.length - 2], lseq0[lseq0.length - 1]); 
-                    sarea.push(nseq); 
-                }
+                dpathappendsegs(darea, spath, true); 
                 px = spath[0][1]; 
                 py = spath[0][2]; 
             }
             console.assert(rlcycnum[i] === undefined); 
             rlcycnum[i] = j; 
         }
-        console.assert(sarea[0][0] == "M"); 
-        sarea.push(["L", sarea[0][1], sarea[0][2]]); 
-        var parea = paper1.path(sarea); 
-        parea.attr({stroke:"white", fill:"#0f0", "fill-opacity":"10%"}); 
-        cycseqs.push({bpaths:bpaths, sarea:sarea, parea:parea}); 
+        console.assert(darea[0][0] == "M"); 
+        if ((px != spath[0][1]) || (py != spath[0][2])) {
+            darea.push(["L", darea[0][1], darea[0][2]]); 
+        }
+        cycseqs.push({bpaths:bpaths, darea:darea, spnum:bpaths[0].spnum, bclockorient:FindPathOrientation(darea)}); 
     }
     
     var pathssinglets = [ ]; 
@@ -337,17 +397,181 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
         }
     }
     console.log("singlets", pathssinglets); 
+    
+    Dcycseqs = cycseqs; 
+    return cycseqs; 
+}
+
+
+// function FindPathSinglets(rlistb, cycseqs)
+function FindAreaGroupings(rlistb, cycseqs)
+{
+    var nsampspercurve = 3; 
+    var nsampspercurveDecider = 2; // work on contour points because using actual inner points gives false positives if mishandled
+    var cycsamplepts = [ ]; 
+    for (var ic = 0; ic < cycseqs.length; ic++) {
+        var cycseq = cycseqs[ic]; 
+        var samplepts = [ Raphael.pathBBox(cycseq.darea) ]; 
+        var tl = Raphael.getTotalLength(cycseq.darea); 
+        for (var i = 0; i < nsampspercurve; i++) {
+            var pal = Raphael.getPointAtLength(cycseq.darea, tl*i/nsampspercurve); 
+            samplepts.push(pal); 
+        }
+        cycsamplepts.push(samplepts); 
+    }
+
+    // find insidedness
+    var continnerpairs = [ ]; 
+    for (var ic0 = 0; ic0 < cycseqs.length - 1; ic0++) {
+        var cycseq0 = cycseqs[ic0]; 
+        var cycsamplepts0 = cycsamplepts[ic0]
+        for (var ic1 = ic0+1; ic1 < cycseqs.length; ic1++) {
+            var cycseq1 = cycseqs[ic1]; 
+            var cycsamplepts1 = cycsamplepts[ic1]
+            if (Raphael.isBBoxIntersect(cycsamplepts0[0], cycsamplepts1[0])) {
+                var si0 = 0, si1 = 0; 
+                for (var i = 1; i <= nsampspercurve; i++) {
+                    //var pt1m = [["M", cycsamplepts1[i].x, cycsamplepts1[i].y], ["H", cycsamplepts1[0].x2 + 10]]; 
+                    //var pt0m = [["M", cycsamplepts0[i].x, cycsamplepts0[i].y], ["H", cycsamplepts0[0].x2 + 10]]; 
+                    //var ni0 = Raphael.pathIntersectionNumber(cycseq0.darea, pt1m); 
+                    //var ni1 = Raphael.pathIntersectionNumber(cycseq1.darea, pt0m); 
+                    si0 += (Raphael.isPointInsidePath(cycseq0.darea, cycsamplepts1[i].x, cycsamplepts1[i].y) ? 1 : 0); 
+                    si1 += (Raphael.isPointInsidePath(cycseq1.darea, cycsamplepts0[i].x, cycsamplepts0[i].y) ? 1 : 0); 
+                }
+
+                if ((si0 >= nsampspercurveDecider) && (si1 < nsampspercurveDecider))
+                    continnerpairs.push([ic1, ic0]); 
+                else if ((si0 < nsampspercurveDecider) && (si1 >= nsampspercurveDecider))
+                    continnerpairs.push([ic0, ic1]); 
+                else if ((si0 >= nsampspercurveDecider) && (si1 >= nsampspercurveDecider))
+                    console.log("overlapping", ic0, ic1, "si", si0, si1); 
+            }
+        }
+    }
+
+    // containment sets
+    console.log(continnerpairs); 
+    var mapsdown = { }; 
+    var mapsup = { }; 
+    for (var ic = 0; ic < cycseqs.length; ic++) {
+        mapsdown[ic] = [ ]; 
+        mapsup[ic] = [ ]; 
+    }
+    for (var i = 0; i < continnerpairs.length; i++) {
+        var ic0 = continnerpairs[i][0]; 
+        var ic1 = continnerpairs[i][1]; 
+        mapsdown[ic1].push(ic0); 
+        mapsup[ic0].push(ic1); 
+    }
+
+    var mapsdown1 = { }; 
+    for (var ic = 0; ic < cycseqs.length; ic++) {
+        var md = mapsdown[ic]; 
+        var md2 = [ ]; 
+        for (var i = 0; i < md.length; i++) {
+            var md11 = mapsdown[md[i]]; 
+            for (var j = 0; j < md11.length; j++) {
+                md2.push(md11[j]); 
+            }
+        }
+        var md1 = [ ]; 
+        for (var i = 0; i < md.length; i++) {
+            if (!md2.includes(md[i])) {
+                md1.push(md[i]); 
+            }
+        }
+        mapsdown1[ic] = md1; 
+    }
+    
+    
+    // work down the tree
+    console.log("mapsdown", mapsdown); 
+    console.log("mapsdown1", mapsdown1); 
+    console.log(mapsup); 
+    var outerlevels = [ ]; 
+    for (var ic = 0; ic < cycseqs.length; ic++) {
+        if (mapsup[ic].length == 0) {
+            outerlevels.push(ic); 
+        }
+    }
+    var contislandlists = [ ]; 
+    while ((outerlevels.length != 0) && (contislandlists.length < cycseqs.length + 10)) {
+        var ic = outerlevels.shift(); 
+        contislandlist = [ ic ]; 
+        var md1 = mapsdown1[ic]; 
+        for (var i = 0; i < md1.length; i++) {
+            contislandlist.push(md1[i]); 
+            var md1i1 = mapsdown1[md1[i]]; 
+            for (var j = 0; j < md1i1.length; j++) {
+                outerlevels.push(md1i1[j]); 
+            }
+        }
+        contislandlists.push(contislandlist); 
+        console.assert(contislandlists.length <= cycseqs.length); 
+    }
+    console.log(contislandlists); 
+    return contislandlists; 
+}
+
+function CreateAreaGroupings(rlistb, cycseqs, contislandlists)
+{
+    var areagroups = [ ]; 
+    for (var i = 0; i < contislandlists.length; i++) {
+        var contislandlist = contislandlists[i]; 
+        var gcyceseqs = [ ]; 
+        var dgroup = [ ]; 
+        var allpaths = [ ]; 
+        for (var j = 0; j < contislandlist.length; j++) {
+            var k = contislandlist[j]; 
+            gcyceseqs.push(cycseqs[k]);
+            var darea = cycseqs[k].darea; 
+            if (cycseqs[k].bclockorient == (j == 0)) {
+                var lseq = darea[darea.length-1]; 
+                darea.push(["M", lseq[lseq.length - 2], lseq[lseq.length - 1]]); 
+                dpathappendsegs(dgroup, darea, true); 
+            } else {
+                dgroup.push(darea[0]); 
+                dpathappendsegs(dgroup, darea, false); 
+            }
+
+            var bpaths = cycseqs[k].bpaths; 
+            for (var m = 0; m < bpaths.length; m++)
+                allpaths.push(bpaths[m]); 
+        }
+        areagroups.push({gcyceseqs:gcyceseqs, dgroup:dgroup, allpaths:allpaths}); 
+    }
+    return areagroups; 
+}
+
+function processimportedSVG(fnum)
+{
+    // first join paths up
+    var rlistb = rlistbyfnum[fnum]; 
+    var closedist = 3.2; 
+    
+    // should process these by colour
+    var cycseqs = FindClosedPathSequences(rlistb, closedist); // [{bpaths:[], darea, spnum}]
+    var contislandlists = FindAreaGroupings(rlistb, cycseqs); // [[iouter,island1,island2..],...]
+console.log("cycseqs1", cycseqs); 
+    var areagroups = CreateAreaGroupings(rlistb, cycseqs, contislandlists); // [{gcyceseqs,dgroup,allpaths}]
+console.log(areagroups); 
+console.log("cycseqs2", cycseqs); 
 
     // should be done after things are closed, joined up and associated with their areas
     // move to outer function
-    $.each(cycseqs, function(i, cycseq) {
+    $.each(areagroups, function(i, areagroup) {
         var brotatemode = false; 
         var cx = 0, cy = 0; 
-        var lpaths = [ cycseq.parea ]; 
-        for (var i = 0; i < cycseq.bpaths.length; i++)
-            lpaths.push(cycseq.bpaths[i].path); 
-            
-        cycseq.parea.drag(
+
+        var pgroup = paper1.path(areagroup.dgroup); 
+        pgroup.attr({stroke:"white", fill:"#ff0", "fill-opacity":"10%"}); 
+        areagroup.pgroup = pgroup; 
+
+        var lpaths = [ areagroup.pgroup ]; 
+        for (var i = 0; i < areagroup.allpaths.length; i++)
+            lpaths.push(areagroup.allpaths[i].path); 
+        
+        areagroup.pgroup.drag(
             function(dx, dy) { 
                 var tstr = (brotatemode ? "r"+(dx*0.5)+","+cx+","+cy : "t"+(dx*paper1scale)+","+(dy*paper1scale)); 
                 $.each(lpaths, function(i, path) { 
@@ -356,8 +580,8 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
             }, 
             function(x, y, e)  { 
                 brotatemode = e.ctrlKey; 
-                pathselected = cycseq; 
-                var bbox = cycseq.parea.getBBox(); 
+                pathselected = pgroup; 
+                var bbox = areagroup.pgroup.getBBox(); 
                 cx = (bbox.x + bbox.x2)/2; 
                 cy = (bbox.y + bbox.y2)/2; 
             }, 
@@ -369,20 +593,6 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
             }
         ); 
     }); 
-    
-// then do this inside/outside stuff to nest them
-// make area cycles with islands.
-// produce objects with these cycles and associated engraving from the remainder code
-// apply the move and dragging systems to these objects
-    return cycseqs; 
-}
-
-function processimportedSVG(fnum)
-{
-    // first join paths up
-    var rlistb = rlistbyfnum[fnum]; 
-    var closedist = 3.2; 
-    var cycseqs = FindClosedPathSequences(rlistb, closedist); 
     
 //path.isPointInside
 
@@ -398,7 +608,7 @@ function processSingleSVGpath(rlistb, d, cmatrix, stroke)
     var dtrans = Raphael.mapPath(d, cmatrix); // Raphael.transformPath(d, raphtranslist.join("")); 
     if (dtrans.length <= 1)
         return; // skip
-    if (stroke == "none")
+    if ((stroke == "none") || (stroke === undefined))
         return; // skip
 
     // this is the place to separate out the paths by M positions
@@ -592,6 +802,9 @@ $(document).ready(setup);   // function to call only *after* page has finished l
 <p>Code is <a href="https://github.com/goatchurchprime/doesliverpool.github.io/">here</a></p>
 
 <p>Work to do:
+*FindClosedPathSequences needs to find the orientation
+
+*file select dropdowns that refer to local banks of colours/scales/unified line calls that may be different and can be rerun
 *EPS conversion using pstoedit on the twisted server
 *select stock shape and type of material which is always underneath (allow for multiple sheets)
 *drop-down of the sizes of stock (ply) which gets plotted in brown as the area, and material (which generates the lookup for the feeds and speeds)
