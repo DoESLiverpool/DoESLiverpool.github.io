@@ -3,6 +3,7 @@
 <head>
 <script src="jquery-2.1.4.min.js"></script>    
 <script type="text/javascript" src="raphael.js"></script>    
+<script type="text/javascript" src="raphpolygonsorting.js"></script>    
 <meta charset="utf-8">
 <title>Experimental SVG lattice hinge generator</title>
 <script>
@@ -178,51 +179,6 @@ function dpathappendsegs(darea, dpath, breversed)
     }
 }
 
-function FindPathOrientation(darea)
-{
-    var iL = 1; 
-    for (var i = 1; i < darea.length; i++) {
-        if (darea[i][darea[i].length - 2] < darea[iL][darea[iL].length - 2]) {
-            iL = i; 
-        }
-    }
-    var x = darea[iL][darea[iL].length - 2]; 
-    var y = darea[iL][darea[iL].length - 1]; 
-    var xf, yf, xb, yb; 
-    var iF = iL + 1; 
-    while (iF != iL) {
-        if (iF == darea.length)
-            iF = 0; 
-        xF = darea[iF][darea[iF].length - 2]; 
-        yF = darea[iF][darea[iF].length - 1]; 
-        if ((xF != x) || (yF != y))
-            break; 
-        iF++; 
-    }
-    var iB = iL - 1; 
-    while (iB != iL) {
-        if (iB == -1) {
-            iB = darea.length - 1; 
-            if (iB == iL)
-                break; 
-        }
-        xB = darea[iB][darea[iB].length - 2]; 
-        yB = darea[iB][darea[iB].length - 1]; 
-        if ((xB != x) || (yB != y))
-            break; 
-        iB--; 
-    }
-        
-    var vxF = xF - x;  
-    var vyF = yF - y;  
-    console.assert(vxF >= 0.0); 
-    var diamondF = vyF / (Math.abs(vyF) + vxF); 
-    var vxB = xB - x;  
-    var vyB = yB - y;  
-    console.assert(vxB >= 0.0); 
-    var diamondB = vyB / (Math.abs(vyB) + vxB); 
-    return diamondB <= diamondF; 
-}
 
 var Drlends, Drlidat, Djdseqs, Dcycseqs; 
 function FindClosedPathSequences(rlistb, closedist)  // also take in spnums known not external
@@ -547,11 +503,11 @@ function SingletsToGroupings(areagroups, bpathssinglets)
     var lamchecks = [ 0.5, 0.1, 0.9, 0.7, 0.33233432 ]; 
     for (var i = 0; i < bpathssinglets.length; i++) {
         var bpath = bpathssinglets[i]; 
-        var tl = Raphael.getTotalLength(bpath.d); 
+        var tl = bpath.path.getTotalLength(); 
         var il = 0; 
         var Jb = -1; 
         while (il < lamchecks.length) {
-            var pt = Raphael.getPointAtLength(bpath.d, tl*lamchecks[il]); 
+            var pt = bpath.path.getPointAtLength(tl*lamchecks[il]); 
             var Js = [ ]; 
             for (var j = 0; j < areagroups.length; j++) {
                 if (Raphael.isPointInsidePath(areagroups[j].dgroup, pt.x, pt.y))
@@ -567,23 +523,28 @@ function SingletsToGroupings(areagroups, bpathssinglets)
         }
         if (Jb != -1) 
             areagroups[Jb].allpaths.push(bpath); 
-        console.log("Jb", i, Jb); 
     }
 }
 
-var Dbpathssinglets; 
+var Dbpathssinglets, Dareagroups; 
 function processimportedSVG(fnum)
 {
     // first join paths up
     var rlistb = rlistbyfnum[fnum]; 
     var closedist = 3.2; 
     
+    var dlist = [ ]; 
+    for (var i = 0; i < rlistb.length; i++)
+        dlist.push(rlistb[i].path.attrs.path); 
+    console.log("FindClosedPathSequencesD", FindClosedPathSequencesD(dlist, closedist)); 
+
     // should process these by colour
     var cycseqs = FindClosedPathSequences(rlistb, closedist); // [{bpaths:[], darea, spnum}]
     var bpathssinglets = cycseqs.pop(); 
     var contislandlists = FindAreaGroupings(rlistb, cycseqs); // [[iouter,island1,island2..],...]
     Dbpathssinglets = bpathssinglets; 
     var areagroups = CreateAreaGroupings(rlistb, cycseqs, contislandlists); // [{gcyceseqs,dgroup,allpaths}]
+    Dareagroups = areagroups; 
     SingletsToGroupings(areagroups, bpathssinglets); 
 
     // should be done after things are closed, joined up and associated with their areas
