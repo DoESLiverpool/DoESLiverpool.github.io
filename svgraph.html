@@ -389,14 +389,13 @@ function FindClosedPathSequences(rlistb, closedist)  // also take in spnums know
         cycseqs.push({bpaths:bpaths, darea:darea, spnum:bpaths[0].spnum, bclockorient:FindPathOrientation(darea)}); 
     }
     
-    var pathssinglets = [ ]; 
+    var bpathssinglets = [ ]; 
     for (var i = 0; i < rlcycnum.length; i++) {
         if (rlcycnum[i] === undefined) {
-            pathssinglets.push(i); 
-            rlistb[i].path.attr("stroke-dasharray", "5,5"); 
+            bpathssinglets.push(rlistb[i]); 
         }
     }
-    console.log("singlets", pathssinglets); 
+    cycseqs.push(bpathssinglets); 
     
     Dcycseqs = cycseqs; 
     return cycseqs; 
@@ -543,6 +542,36 @@ function CreateAreaGroupings(rlistb, cycseqs, contislandlists)
     return areagroups; 
 }
 
+function SingletsToGroupings(areagroups, bpathssinglets)
+{
+    var lamchecks = [ 0.5, 0.1, 0.9, 0.7, 0.33233432 ]; 
+    for (var i = 0; i < bpathssinglets.length; i++) {
+        var bpath = bpathssinglets[i]; 
+        var tl = Raphael.getTotalLength(bpath.d); 
+        var il = 0; 
+        var Jb = -1; 
+        while (il < lamchecks.length) {
+            var pt = Raphael.getPointAtLength(bpath.d, tl*lamchecks[il]); 
+            var Js = [ ]; 
+            for (var j = 0; j < areagroups.length; j++) {
+                if (Raphael.isPointInsidePath(areagroups[j].dgroup, pt.x, pt.y))
+                    Js.push(j); 
+            }
+            if (Js.length == 1) {
+                Jb = Js[0]; 
+                break; 
+            }
+            if (Js.length != 0)
+                Jb = Js[0]; 
+            il++; 
+        }
+        if (Jb != -1) 
+            areagroups[Jb].allpaths.push(bpath); 
+        console.log("Jb", i, Jb); 
+    }
+}
+
+var Dbpathssinglets; 
 function processimportedSVG(fnum)
 {
     // first join paths up
@@ -551,11 +580,11 @@ function processimportedSVG(fnum)
     
     // should process these by colour
     var cycseqs = FindClosedPathSequences(rlistb, closedist); // [{bpaths:[], darea, spnum}]
+    var bpathssinglets = cycseqs.pop(); 
     var contislandlists = FindAreaGroupings(rlistb, cycseqs); // [[iouter,island1,island2..],...]
-console.log("cycseqs1", cycseqs); 
+    Dbpathssinglets = bpathssinglets; 
     var areagroups = CreateAreaGroupings(rlistb, cycseqs, contislandlists); // [{gcyceseqs,dgroup,allpaths}]
-console.log(areagroups); 
-console.log("cycseqs2", cycseqs); 
+    SingletsToGroupings(areagroups, bpathssinglets); 
 
     // should be done after things are closed, joined up and associated with their areas
     // move to outer function
@@ -595,8 +624,6 @@ console.log("cycseqs2", cycseqs);
     }); 
     
 //path.isPointInside
-
-
     // find matching by closest and put into the rlclosed set, favour only cycles, not dead ends
     // sort the closed set (and open paths) by containment
     // mark certain colours as engraving type and recalculate containment
@@ -643,9 +670,8 @@ function importSVG(txt, fnum)
     var pback = {pos:-1, raphtranslist:[""], cmatrix:Raphael.matrix() };
     var pstack = [ ]; 
     var cstack = [ tsvg ]; 
-    var mclassstroke = { "st2":"red" }; 
+    var mclassstroke = { }; 
     tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{[^\}]*stroke:\s*([^;\s\}]+)/gi, function(a, b, c) { mclassstroke[b] = c; }); 
-    console.log(mclassstroke); 
     
     function importSVGpathR() {
         while (cstack.length == pback.pos) 
