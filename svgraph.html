@@ -667,11 +667,12 @@ function importSVG(txt, fnum)
 
     bcancelExIm = false; 
     var timeoutcyclems = 10; 
-    var pback = {pos:-1, raphtranslist:[""], cmatrix:Raphael.matrix() };
+    var pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix() };
     var pstack = [ ]; 
     var cstack = [ tsvg ]; 
     var mclassstroke = { }; 
     tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{[^\}]*stroke:\s*([^;\s\}]+)/gi, function(a, b, c) { mclassstroke[b] = c; }); 
+    var rlistb = rlistbyfnum[fnum]; 
     
     function importSVGpathR() {
         while (cstack.length == pback.pos) 
@@ -689,6 +690,15 @@ function importSVG(txt, fnum)
             raphtranslist.push(c.attr("transform").replace(/([mtrs])\w+\s*\(([^\)]*)\)/gi, function(a, b, c) { return b.toLowerCase()+c+(b.match(/s/i) ? ",0,0" : ""); } )); 
             cmatrix = paper1.path().transform(raphtranslist.join("")).matrix; 
         }
+
+        var strokelist = pback.strokelist; 
+        var cstroke = c.attr("stroke") || c.css("stroke") || mclassstroke[c.attr("class")]; 
+        if (cstroke) {
+            strokelist = strokelist.slice(); 
+            strokelist.push(cstroke); 
+        } else {
+            cstroke = strokelist[strokelist.length - 1]; 
+        }
         if (tag == "pattern") {
             console.log("skip pattern"); 
         } else if ((tag == "polygon") || (tag == "polygline")) {
@@ -696,26 +706,25 @@ function importSVG(txt, fnum)
             var x0 = ppts.shift(); 
             var y0 = ppts.shift();
             var d = 'M'+x0+','+y0+'L'+ppts.join(' ')+(tag == "polygon" ? "Z" : ""); 
-            processSingleSVGpath(rlistbyfnum[fnum], d, cmatrix, c.attr("stroke") || c.css("stroke") || mclassstroke[c.attr("class")]); 
+            processSingleSVGpath(rlistb, d, cmatrix, cstroke); 
         } else if (tag == "circle") {
             var cx = parseFloat(c.attr("cx"));
             var cy = parseFloat(c.attr("cy")); 
             var r = parseFloat(c.attr("r")); 
             var d = "M"+(cx-r)+","+cy+"A"+r+","+r+",0,0,1,"+cx+","+(cy-r)+"A"+r+","+r+",0,1,1,"+(cx-r)+","+cy; 
-            console.log(d); 
-            processSingleSVGpath(rlistbyfnum[fnum], d, cmatrix, c.attr("stroke") || c.css("stroke") || mclassstroke[c.attr("class")]); 
+            processSingleSVGpath(rlistb, d, cmatrix, cstroke); 
         } else if (tag == "rect") {
             var x0 = parseFloat(c.attr("x"));
             var y0 = parseFloat(c.attr("y")); 
             var x1 = x0 + parseFloat(c.attr("width")); 
             var y1 = y0 + parseFloat(c.attr("height")); 
             var d = "M"+x0+","+y0+"L"+x0+","+y1+" "+x1+","+y1+" "+x1+","+y0+"Z"; 
-            processSingleSVGpath(rlistbyfnum[fnum], d, cmatrix, c.attr("stroke") || c.css("stroke") || mclassstroke[c.attr("class")]); 
+            processSingleSVGpath(rlistb, d, cmatrix, cstroke); 
         } else if (tag == "path") {
-            processSingleSVGpath(rlistbyfnum[fnum], c.attr("d"), cmatrix, c.attr("stroke") || c.css("stroke") || mclassstroke[c.attr("class")]); 
+            processSingleSVGpath(rlistb, c.attr("d"), cmatrix, cstroke); 
         } else {
             pstack.push(pback); 
-            pback = { pos:cstack.length, raphtranslist:raphtranslist, cmatrix:cmatrix }; 
+            pback = { pos:cstack.length, raphtranslist:raphtranslist, strokelist:strokelist, cmatrix:cmatrix }; 
             var cs = c.children(); 
             for (var i = cs.length - 1; i >= 0; i--) 
                 cstack.push($(cs[i]));   // in reverse order for the stack
@@ -828,7 +837,9 @@ $(document).ready(setup);   // function to call only *after* page has finished l
 <p>Code is <a href="https://github.com/goatchurchprime/doesliverpool.github.io/">here</a></p>
 
 <p>Work to do:
-*FindClosedPathSequences needs to find the orientation
+* find bug in snowflake
+* create objects/classes to 
+
 
 *file select dropdowns that refer to local banks of colours/scales/unified line calls that may be different and can be rerun
 *EPS conversion using pstoedit on the twisted server
