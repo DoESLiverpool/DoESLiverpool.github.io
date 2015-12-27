@@ -1,5 +1,7 @@
 
-function FindPathOrientation(darea)
+PolySorting = {
+
+FindPathOrientation: function(darea)
 {
     var iL = 1; 
     for (var i = 1; i < darea.length; i++) {
@@ -43,11 +45,10 @@ function FindPathOrientation(darea)
     console.assert(vxB >= 0.0); 
     var diamondB = vyB / (Math.abs(vyB) + vxB); 
     return diamondB <= diamondF; 
-}
+},
 
 
-var Djdseqs; 
-function FindClosedPathSequencesD(dlist, closedist)
+FindClosedPathSequencesD: function(dlist, closedist)
 {
     // create arrays of closest links
     var closedistSq = closedist*closedist; 
@@ -165,9 +166,9 @@ function FindClosedPathSequencesD(dlist, closedist)
         }
     }
     return jdseqs; 
-}
+},
 
-function GetSingletsList(jdseqs, dlistlength)
+GetSingletsList: function(jdseqs, dlistlength)
 {
     var singletslistNm = { }; 
     for (var i = 0; i < jdseqs.length; i++) {
@@ -183,9 +184,9 @@ function GetSingletsList(jdseqs, dlistlength)
         }
     }
     return singletslist; 
-}
+},
 
-function dpathappendsegs(darea, dpath, breversed) 
+dpathappendsegs: function(darea, dpath, breversed) 
 {
     if (breversed) {
         for (var k = dpath.length - 1; k > 0; k--) {
@@ -201,9 +202,9 @@ function dpathappendsegs(darea, dpath, breversed)
         for (var k = 1; k < dpath.length; k++) 
             darea.push(dpath[k]); 
     }
-}
+},
 
-function RevJDseq(jdseq)
+RevJDseq: function(jdseq)
 {
     var res = [ ]; 
     for (var i = jdseq.length - 1; i >= 0; i--) {
@@ -211,9 +212,9 @@ function RevJDseq(jdseq)
         res.push(jd + ((jd%2)==1 ? -1 : 1)); 
     }
     return res; 
-}
+},
 
-function JDgeoseq(jdseq, dlist)
+JDgeoseq: function(jdseq, dlist)
 {
     var darea = [ ]; 
     for (var ijd = 0; ijd < jdseq.length; ijd++) {
@@ -229,7 +230,7 @@ function JDgeoseq(jdseq, dlist)
             } else if ((px != spath[0][1]) || (py != spath[0][2])) {
                 darea.push(["L", spath[0][1], spath[0][2]]); 
             }
-            dpathappendsegs(darea, spath, false); 
+            this.dpathappendsegs(darea, spath, false); 
             var lseq = spath[spath.length-1]; 
             px = lseq[lseq.length - 2]; 
             py = lseq[lseq.length - 1]; 
@@ -240,7 +241,7 @@ function JDgeoseq(jdseq, dlist)
             } else if ((px != lseq[lseq.length - 2]) || (py != lseq[lseq.length - 1])) {
                 darea.push(["L", lseq[lseq.length - 2], lseq[lseq.length - 1]]); 
             }
-            dpathappendsegs(darea, spath, true); 
+            this.dpathappendsegs(darea, spath, true); 
             px = spath[0][1]; 
             py = spath[0][2]; 
         }
@@ -250,10 +251,10 @@ function JDgeoseq(jdseq, dlist)
         darea.push(["L", darea[0][1], darea[0][2]]); 
     }
     return darea; 
-}
+},
 
 
-function FindAreaGroupingsD(jdgeos)
+FindAreaGroupingsD: function(jdgeos)
 {
     var nsampspercurve = 3; 
     var nsampspercurveDecider = 2; // work on contour points because using actual inner points gives false positives if mishandled
@@ -357,11 +358,9 @@ function FindAreaGroupingsD(jdgeos)
         console.assert(cboundislands.length <= jdgeos.length); 
     }
     return cboundislands; 
-}
+},
 
-        
-
-function SingletsToGroupingsD(dpath, cboundislands, jdgeos)
+SingletsToGroupingsD: function(dpath, cboundislands, jdgeos)
 {
     var lamchecks = [ 0.5, 0.1, 0.9, 0.7, 0.33233432 ]; 
     var tl = Raphael.getTotalLength(dpath); 
@@ -391,3 +390,5 @@ function SingletsToGroupingsD(dpath, cboundislands, jdgeos)
     }
     return Jb; 
 }
+}
+

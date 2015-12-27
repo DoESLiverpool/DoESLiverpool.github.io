@@ -182,7 +182,7 @@ function ProcessToPathGroupings(rlistb, closedist)
             dlist.push(rlistb[i].spnum == spnum ? rlistb[i].path.attrs.path : null); 
             npathsc++; 
         }
-        var ljdseqs = FindClosedPathSequencesD(dlist, closedist); 
+        var ljdseqs = PolySorting.FindClosedPathSequencesD(dlist, closedist); 
         var npathsleft = 0; 
         for (var i = 0; i < ljdseqs.length; i++)
             npathsleft += ljdseqs[i].length; 
@@ -193,7 +193,7 @@ function ProcessToPathGroupings(rlistb, closedist)
 
     // list of paths not included in any cycle
     $("#readingcancel").text("getsingletlist"); 
-    var singletslist = GetSingletsList(jdseqs, dlist.length)
+    var singletslist = PolySorting.GetSingletsList(jdseqs, dlist.length)
 
     // build the dlist without any holes parallel to rlistb to use for groupings
     var dlist = [ ]; 
@@ -202,13 +202,13 @@ function ProcessToPathGroupings(rlistb, closedist)
     $("#readingcancel").text("concat JDgeoseqs"); 
     var jdgeos = [ ]; 
     for (var i = 0; i < jdseqs.length; i++) {
-        jdgeos.push(JDgeoseq(jdseqs[i], dlist)); // concatenated sequences of paths forming the boundaries
+        jdgeos.push(PolySorting.JDgeoseq(jdseqs[i], dlist)); // concatenated sequences of paths forming the boundaries
     }
 
     // groups of jdsequences forming outercontour, islands, singlets 
     $("#readingcancel").text("FindAreaGroupingsD"); 
     var res = [ ]; 
-    var cboundislands = FindAreaGroupingsD(jdgeos); 
+    var cboundislands = PolySorting.FindAreaGroupingsD(jdgeos); 
     
     $("#readingcancel").text("oriented islands"); 
     for (var j = 0; j < cboundislands.length; j++) {
@@ -217,8 +217,8 @@ function ProcessToPathGroupings(rlistb, closedist)
         for (var ci = 0; ci < cboundisland.length; ci++) {
             var i = cboundisland[ci]; 
             var jdgeo = jdgeos[i]; 
-            var bfore = FindPathOrientation(jdgeo); 
-            var jdseq = (((ci == 0) == bfore) ? jdseqs[i] : RevJDseq(jdseqs[i])); 
+            var bfore = PolySorting.FindPathOrientation(jdgeo); 
+            var jdseq = (((ci == 0) == bfore) ? jdseqs[i] : PolySorting.RevJDseq(jdseqs[i])); 
             lres.push(jdseq); 
         }
         lres.push([ ]); // the slot for the list of singlet paths
@@ -229,7 +229,7 @@ function ProcessToPathGroupings(rlistb, closedist)
     for (var i = 0; i < singletslist.length; i++) {
         var ic = singletslist[i]; 
         var dpath = dlist[ic]; 
-        var j = SingletsToGroupingsD(dpath, cboundislands, jdgeos); 
+        var j = PolySorting.SingletsToGroupingsD(dpath, cboundislands, jdgeos); 
         if (j != -1)
             res[j][res[j].length-1].push(ic); 
     }
@@ -254,7 +254,7 @@ function processimportedSVG(rlistb)
         var dgroup = [ ]; 
         console.log("jjj", pathgrouping); 
         for (var j = 0; j < pathgrouping.length - 1; j++) {
-            dgroup = dgroup.concat(JDgeoseq(pathgrouping[j], dlist)); 
+            dgroup = dgroup.concat(PolySorting.JDgeoseq(pathgrouping[j], dlist)); 
         }
         var pgroup = paper1.path(dgroup); 
         pgroup.attr({stroke:"white", fill:"#0f0", "fill-opacity":"10%"}); 
