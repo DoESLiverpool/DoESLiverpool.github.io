@@ -161,24 +161,6 @@ function MoveCollide()
 }
 
 
-function dpathappendsegs(darea, dpath, breversed) 
-{
-    if (breversed) {
-        for (var k = dpath.length - 1; k > 0; k--) {
-            var lseq0 = dpath[k-1]; 
-            var lseq1 = dpath[k]; 
-            var nseq = [ lseq1[0] ]; 
-            for (var l = lseq1.length - 4; l > 0; l -= 2)
-                nseq.push(lseq1[l], lseq1[l + 1]); 
-            nseq.push(lseq0[lseq0.length - 2], lseq0[lseq0.length - 1]); 
-            darea.push(nseq); 
-        }
-    } else {
-        for (var k = 1; k < dpath.length; k++) 
-            darea.push(dpath[k]); 
-    }
-}
-
 
 var Drlends, Drlidat, Djdseqs, Dcycseqs; 
 function FindClosedPathSequences(rlistb, closedist)  // also take in spnums known not external
@@ -374,6 +356,7 @@ function FindAreaGroupings(rlistb, cycseqs)
         }
         cycsamplepts.push(samplepts); 
     }
+console.log("cycsamplepts2", cycsamplepts); 
 
     // find insidedness
     var continnerpairs = [ ]; 
@@ -403,6 +386,7 @@ function FindAreaGroupings(rlistb, cycseqs)
             }
         }
     }
+    
 
     // containment sets
     console.log(continnerpairs); 
@@ -526,18 +510,150 @@ function SingletsToGroupings(areagroups, bpathssinglets)
     }
 }
 
+function ProcessToPathGroupings(rlistb, closedist)
+{
+    // extract the spnums
+    var mspnums = { }; 
+    for (var i = 0; i < rlistb.length; i++) {
+        mspnums[rlistb[i].spnum] = 1; 
+    }
+    var spnums = Object.keys(mspnums); 
+    
+    // form the closed path sequences per spnum
+    var spnumscp = spnums;  // this filters out the paths considered for forming cycles by colour
+    var jdseqs = [ ];  // indexes dlist
+    for (var ispnum = 0; ispnum < spnumscp.length; ispnum++) {
+        var spnum = spnumscp[ispnum]; 
+        $("#readingcancel").text("joining spnum="+spnum); 
+        var dlist = [ ]; 
+        var npathsc = 0; 
+        for (var i = 0; i < rlistb.length; i++) {
+            dlist.push(rlistb[i].spnum == spnum ? rlistb[i].path.attrs.path : null); 
+            npathsc++; 
+        }
+        var ljdseqs = FindClosedPathSequencesD(dlist, closedist); 
+        var npathsleft = 0; 
+        for (var i = 0; i < ljdseqs.length; i++)
+            npathsleft += ljdseqs[i].length; 
+        //console.log("ljdseqs", spnum, "joined", npathsc, "left", npathsleft);  // could use not-joined paths as a guess of which colours to filter as engravings
+        jdseqs = jdseqs.concat(ljdseqs); 
+    }
+    // jdseqs = [ [i1, i2, i3,...] sequence of dlist[ii/2|0], bfore=((ii%2)==1 ]
+
+    // list of paths not included in any cycle
+    $("#readingcancel").text("getsingletlist"); 
+    var singletslist = GetSingletsList(jdseqs, dlist.length)
+
+    // build the dlist without any holes parallel to rlistb to use for groupings
+    var dlist = [ ]; 
+    for (var i = 0; i < rlistb.length; i++) 
+        dlist.push(rlistb[i].path.attrs.path); 
+    $("#readingcancel").text("concat JDgeoseqs"); 
+    var jdgeos = [ ]; 
+    for (var i = 0; i < jdseqs.length; i++) {
+        jdgeos.push(JDgeoseq(jdseqs[i], dlist)); // concatenated sequences of paths forming the boundaries
+    }
+
+    // groups of jdsequences forming outercontour, islands, singlets 
+    $("#readingcancel").text("FindAreaGroupingsD"); 
+    var res = [ ]; 
+    var cboundislands = FindAreaGroupingsD(jdgeos); 
+    
+    $("#readingcancel").text("oriented islands"); 
+    for (var j = 0; j < cboundislands.length; j++) {
+        var lres = [ ]; 
+        var cboundisland = cboundislands[j]; 
+        for (var ci = 0; ci < cboundisland.length; ci++) {
+            var i = cboundisland[ci]; 
+            var jdgeo = jdgeos[i]; 
+            var bfore = FindPathOrientation(jdgeo); 
+            var jdseq = (((ci == 0) == bfore) ? jdseqs[i] : RevJDseq(jdseqs[i])); 
+            lres.push(jdseq); 
+        }
+        lres.push([ ]); // the slot for the list of singlet paths
+        res.push(lres); 
+    }
+    
+    $("#readingcancel").text("singlets to groupings"); 
+    for (var i = 0; i < singletslist.length; i++) {
+        var ic = singletslist[i]; 
+        var dpath = dlist[ic]; 
+        var j = SingletsToGroupingsD(dpath, cboundislands, jdgeos); 
+        if (j != -1)
+            res[j][res[j].length-1].push(ic); 
+    }
+
+    console.log("resres", res); 
+    return res; 
+}
+
+function processimportedSVGnew(rlistb)
+{
+    var closedist = 3.2; 
+    var pathgroupings = ProcessToPathGroupings(rlistb, closedist); // just lists of indexes into rlistb
+    $("#readingcancel").text("done ProcessToPathGroupings"); 
+
+    // rebuild this groupings directly from the above indexing sets
+    var dlist = [ ]; 
+    for (var i = 0; i < rlistb.length; i++) 
+        dlist.push(rlistb[i].path.attrs.path); 
+
+    $.each(pathgroupings, function(i, pathgrouping) {
+        // form the area object
+        var dgroup = [ ]; 
+        console.log("jjj", pathgrouping); 
+        for (var j = 0; j < pathgrouping.length - 1; j++) {
+            dgroup = dgroup.concat(JDgeoseq(pathgrouping[j], dlist)); 
+        }
+        var pgroup = paper1.path(dgroup); 
+        pgroup.attr({stroke:"white", fill:"#0f0", "fill-opacity":"10%"}); 
+        
+        // form the list of all paths belonging to this area object
+        var lpaths = [ pgroup ]; 
+        var engpaths = pathgrouping[pathgrouping.length - 1]; 
+        for (var i = 0; i < engpaths.length; i++)
+            lpaths.push(rlistb[engpaths[i]].path); 
+        for (var j = 0; j < pathgrouping.length - 1; j++) {
+            for (var i = 0; i < pathgrouping[j].length; i++)
+                lpaths.push(rlistb[pathgrouping[j][i]/2|0].path); 
+        }
+        
+        var brotatemode = false; 
+        var cx = 0, cy = 0; 
+        pgroup.drag(
+            function(dx, dy) { 
+                var tstr = (brotatemode ? "r"+(dx*0.5)+","+cx+","+cy : "t"+(dx*paper1scale)+","+(dy*paper1scale)); 
+                $.each(lpaths, function(i, path) { 
+                    path.transform(tstr); 
+                }); 
+            }, 
+            function(x, y, e)  { 
+                brotatemode = e.ctrlKey; 
+                pathselected = pgroup; 
+                var bbox = pgroup.getBBox(); 
+                cx = (bbox.x + bbox.x2)/2; 
+                cy = (bbox.y + bbox.y2)/2; 
+            }, 
+            function() { 
+                $.each(lpaths, function(i, path) { 
+                    path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); 
+                    path.transform("t0,0") 
+                }); 
+            }
+        ); 
+    }); 
+}
+
 var Dbpathssinglets, Dareagroups; 
 function processimportedSVG(fnum)
 {
     // first join paths up
     var rlistb = rlistbyfnum[fnum]; 
     var closedist = 3.2; 
-    
-    var dlist = [ ]; 
-    for (var i = 0; i < rlistb.length; i++)
-        dlist.push(rlistb[i].path.attrs.path); 
-    console.log("FindClosedPathSequencesD", FindClosedPathSequencesD(dlist, closedist)); 
 
+    processimportedSVGnew(rlistb); 
+    return; 
+    
     // should process these by colour
     var cycseqs = FindClosedPathSequences(rlistb, closedist); // [{bpaths:[], darea, spnum}]
     var bpathssinglets = cycseqs.pop(); 
@@ -584,11 +700,6 @@ function processimportedSVG(fnum)
         ); 
     }); 
     
-//path.isPointInside
-    // find matching by closest and put into the rlclosed set, favour only cycles, not dead ends
-    // sort the closed set (and open paths) by containment
-    // mark certain colours as engraving type and recalculate containment
-    // sets of { Outer, [Inners], [engravings] }
 }
 
 function processSingleSVGpath(rlistb, d, cmatrix, stroke)
