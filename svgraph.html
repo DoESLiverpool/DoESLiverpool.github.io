@@ -303,18 +303,29 @@ function processSingleSVGpath(rlistb, d, cmatrix, stroke)
         return; // skip
     if ((stroke == "none") || (stroke === undefined))
         return; // skip
-
-    // this is the place to separate out the paths by M positions
-    var path = paper1.path(dtrans); 
-    path.attr({stroke:stroke, "stroke-width":2}); 
-
-    var spcol = path.attr("stroke");  
-    if (spnums[spcol] == undefined) {
-        spnums[spcol] = ++spcount; 
-        $("#spnumcols").append($('<span id="spnum'+spcount+'">X</span>').css("background", spcol)); 
+        
+    if (spnums[stroke] === undefined) {
+        spnums[stroke] = ++spcount; 
+        $("#spnumcols").append($('<span id="spnum'+spcount+'">X</span>').css("background", stroke)); 
     }
-    rlist.push(path); 
-    rlistb.push({path:path, spnum:spnums[spcol], d:d, cmatrix:cmatrix}); 
+    var spnum = spnums[stroke]; 
+    
+    var i0 = 0; 
+    var mi = 0; 
+    while (i0 < dtrans.length) {
+        var i1 = i0 + 1; 
+        while ((i1 < dtrans.length) && (dtrans[i1][0] != "M"))
+            i1++; 
+            
+        // this is the place to separate out the paths by M positions
+        var path = paper1.path(dtrans.slice(i0, i1)); 
+        path.attr({stroke:stroke, "stroke-width":2}); 
+        rlist.push(path); 
+        rlistb.push({path:path, spnum:spnum, d:d, mi:mi, cmatrix:cmatrix}); 
+        
+        i0 = i1; 
+        mi++; 
+    }
 }
 
 var Dtxt, Dtsvg; 
