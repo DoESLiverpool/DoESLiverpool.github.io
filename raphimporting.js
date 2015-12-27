@@ -10,11 +10,27 @@ function WorkOutPixelScale(txt, tsvg)
         function(a, x, y, w, h) { 
             viewBox.push(parseFloat(x), parseFloat(y), parseFloat(w), parseFloat(h)); 
     }); 
+
     console.log("facts:" + sheight+"  "+swidth + "  "+viewBox); 
-    var mmheight = parseFloat(sheight); 
-    var mmwidth = parseFloat(swidth); 
-    mmpixwidth = viewBox[2]/mmwidth; 
-    mmpixheight = viewBox[3]/mmheight; 
+    var mmheight, mmwidth; 
+    if (sheight != undefined) {
+        console.assert(sheight.match(/.*?(mm|in)$/g)); 
+        mmheight = parseFloat(sheight) * (sheight[sheight.length-1] == 'n' ? 25.4 : 1); 
+    }
+    if (swidth != undefined) {
+        console.assert(swidth.match(/.*?(mm|in)$/g)); 
+        mmwidth = parseFloat(swidth) * (swidth[swidth.length-1] == 'n' ? 25.4 : 1); 
+    }
+    
+    var inkscapedefaultmmpix = 90/25.4; 
+    if (viewBox.length != 0) {
+        mmpixwidth = viewBox[2]/mmwidth; 
+        mmpixheight = viewBox[3]/mmheight; 
+    } else {
+        mmpixwidth = inkscapedefaultmmpix; 
+        mmpixheight = inkscapedefaultmmpix; 
+    }
+    
     $("#pixscaleX").text(mmpixwidth.toFixed(3)); 
     $("#pixscaleY").text(mmpixheight.toFixed(3)); 
 }
@@ -107,10 +123,11 @@ function processimportedSVG(rlistb)
     for (var i = 0; i < rlistb.length; i++) 
         dlist.push(rlistb[i].path.attrs.path); 
 
+// should save these into objects to be passed between documents
+
     $.each(pathgroupings, function(i, pathgrouping) {
         // form the area object
         var dgroup = [ ]; 
-        console.log("jjj", pathgrouping); 
         for (var j = 0; j < pathgrouping.length - 1; j++) {
             dgroup = dgroup.concat(PolySorting.JDgeoseq(pathgrouping[j], dlist)); 
         }
