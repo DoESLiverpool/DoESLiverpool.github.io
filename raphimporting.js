@@ -1,12 +1,19 @@
 
-var mmpixwidth, mmpixheight; // to be used to scale back to output SVG (not for version 0.43)
-var spnums = { }, spcount = 0; 
-function WorkOutPixelScale(txt, tsvg) 
+var SVGfileprocess = function(fname, fnum) 
 {
-    var sheight = tsvg.attr("height"); 
-    var swidth = tsvg.attr("width"); 
+    this.fname = fname; 
+    this.fnum = fnum; 
+    this.state = "constructed"; 
+}
+
+
+var spnums = { }, spcount = 0; 
+SVGfileprocess.prototype.WorkOutPixelScale = function() 
+{
+    var sheight = this.tsvg.attr("height"); 
+    var swidth = this.tsvg.attr("width"); 
     var viewBox = []; // (seemingly unable to lift the viewBox as an attribute)
-    txt.replace(/viewBox="(-?\d*\.?\d*(?:e[\-+]?\d+)?)\s+(-?\d*\.?\d*(?:e[\-+]?\d+)?)\s+(-?\d*\.?\d*(?:e[\-+]?\d+)?)\s+(-?\d*\.?\d*(?:e[\-+]?\d+)?)/g, 
+    this.txt.replace(/viewBox="(-?\d*\.?\d*(?:e[\-+]?\d+)?)\s+(-?\d*\.?\d*(?:e[\-+]?\d+)?)\s+(-?\d*\.?\d*(?:e[\-+]?\d+)?)\s+(-?\d*\.?\d*(?:e[\-+]?\d+)?)/g, 
         function(a, x, y, w, h) { 
             viewBox.push(parseFloat(x), parseFloat(y), parseFloat(w), parseFloat(h)); 
     }); 
@@ -24,16 +31,145 @@ function WorkOutPixelScale(txt, tsvg)
     
     var inkscapedefaultmmpix = 90/25.4; 
     if (viewBox.length != 0) {
-        mmpixwidth = viewBox[2]/mmwidth; 
-        mmpixheight = viewBox[3]/mmheight; 
+        this.mmpixwidth = viewBox[2]/mmwidth; 
+        this.mmpixheight = viewBox[3]/mmheight; 
     } else {
-        mmpixwidth = inkscapedefaultmmpix; 
-        mmpixheight = inkscapedefaultmmpix; 
+        this.mmpixwidth = inkscapedefaultmmpix; 
+        this.mmpixheight = inkscapedefaultmmpix; 
     }
     
-    $("#pixscaleX").text(mmpixwidth.toFixed(3)); 
-    $("#pixscaleY").text(mmpixheight.toFixed(3)); 
+    $("#pixscaleX").text(this.mmpixwidth.toFixed(3)); 
+    $("#pixscaleY").text(this.mmpixheight.toFixed(3)); 
 }
+    
+SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke)
+{
+    var dtrans = Raphael.mapPath(d, cmatrix); // Raphael.transformPath(d, raphtranslist.join("")); 
+    if (dtrans.length <= 1)
+        return; // skip
+    if ((stroke == "none") || (stroke === undefined))
+        return; // skip
+        
+    if (this.spnums[stroke] === undefined) {
+        this.spnums[stroke] = ++this.spcount; 
+        $("#spnumcols").append($('<span id="spnum'+this.spcount+'">X</span>').css("background", stroke)); 
+    }
+    var spnum = this.spnums[stroke]; 
+    
+    var i0 = 0; 
+    var mi = 0; 
+    while (i0 < dtrans.length) {
+        var i1 = i0 + 1; 
+        while ((i1 < dtrans.length) && (dtrans[i1][0] != "M"))
+            i1++; 
+            
+        // this is the place to separate out the paths by M positions
+        var path = paper1.path(dtrans.slice(i0, i1)); 
+        path.attr({stroke:stroke, "stroke-width":2}); 
+        rlist.push(path); 
+        this.rlistb.push({path:path, spnum:spnum, d:d, mi:mi, cmatrix:cmatrix}); 
+        
+        i0 = i1; 
+        mi++; 
+    }
+}
+
+SVGfileprocess.prototype.importSVGpathR = function() 
+{
+    while (this.cstack.length == this.pback.pos) 
+        this.pback = this.pstack.pop(); 
+    if (this.cstack.length == 0) {
+        //processimportedSVG(rlistbyfnum[fnum]); // calls out to the big one
+        return false; 
+    }
+    var c = this.cstack.pop(); 
+    var tag = c.prop("tagName").toLowerCase(); 
+    var raphtranslist = this.pback.raphtranslist; 
+    var cmatrix = this.pback.cmatrix; 
+    if (c.attr("transform")) {
+        raphtranslist = raphtranslist.slice(); 
+        raphtranslist.push(c.attr("transform").replace(/([mtrs])\w+\s*\(([^\)]*)\)/gi, function(a, b, c) { return b.toLowerCase()+c+(b.match(/s/i) ? ",0,0" : ""); } )); 
+        cmatrix = paper1.path().transform(raphtranslist.join("")).matrix; 
+    }
+
+    var strokelist = this.pback.strokelist; 
+    var cstroke = c.attr("stroke") || c.css("stroke") || this.mclassstroke[c.attr("class")]; 
+    if (cstroke) {
+        strokelist = strokelist.slice(); 
+        strokelist.push(cstroke); 
+    } else {
+        cstroke = strokelist[strokelist.length - 1]; 
+    }
+    if (tag == "pattern") {
+        console.log("skip pattern"); 
+    } else if ((tag == "polygon") || (tag == "polygline")) {
+        var ppts = c.attr("points").split(/\s+|,/);
+        var x0 = ppts.shift(); 
+        var y0 = ppts.shift();
+        var d = 'M'+x0+','+y0+'L'+ppts.join(' ')+(tag == "polygon" ? "Z" : ""); 
+        this.processSingleSVGpath(d, cmatrix, cstroke); 
+    } else if (tag == "circle") {
+        var cx = parseFloat(c.attr("cx"));
+        var cy = parseFloat(c.attr("cy")); 
+        var r = parseFloat(c.attr("r")); 
+        var d = "M"+(cx-r)+","+cy+"A"+r+","+r+",0,0,1,"+cx+","+(cy-r)+"A"+r+","+r+",0,1,1,"+(cx-r)+","+cy; 
+        this.processSingleSVGpath(d, cmatrix, cstroke); 
+    } else if (tag == "rect") {
+        var x0 = parseFloat(c.attr("x"));
+        var y0 = parseFloat(c.attr("y")); 
+        var x1 = x0 + parseFloat(c.attr("width")); 
+        var y1 = y0 + parseFloat(c.attr("height")); 
+        var d = "M"+x0+","+y0+"L"+x0+","+y1+" "+x1+","+y1+" "+x1+","+y0+"Z"; 
+        this.processSingleSVGpath(d, cmatrix, cstroke); 
+    } else if (tag == "path") {
+        this.processSingleSVGpath(c.attr("d"), cmatrix, cstroke); 
+    } else {
+        this.pstack.push(this.pback); 
+        this.pback = { pos:this.cstack.length, raphtranslist:raphtranslist, strokelist:strokelist, cmatrix:cmatrix }; 
+        var cs = c.children(); 
+        for (var i = cs.length - 1; i >= 0; i--) 
+            this.cstack.push($(cs[i]));   // in reverse order for the stack
+    }
+    $("#readingcancel").text(this.rlistb.length+"/"+this.cstack.length); 
+    return true; 
+}
+
+SVGfileprocess.prototype.InitiateLoadingProcess = function(txt) 
+{
+    this.state = "loading"; 
+    this.txt = txt; 
+    this.tsvg = $($(txt).children()[0]).parent(); // seems not to work directly as $(txt).find("svg")
+    this.WorkOutPixelScale();  
+
+    this.bcancelIm = false; 
+    this.timeoutcyclems = 10; 
+    this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix() };
+    this.pstack = [ ]; 
+    this.cstack = [ this.tsvg ]; 
+    this.mclassstroke = { }; 
+    this.tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{[^\}]*stroke:\s*([^;\s\}]+)/gi, function(a, b, c) { mclassstroke[b] = c; }); 
+    this.rlistb = [ ]; 
+    this.spnums = { }; 
+    this.spcount = [ ]; 
+    
+    this.state = "importsvgr"; 
+    var outerthis = this; 
+    function importSVGpathRR() {
+        if (outerthis.bcancelExIm) {
+            $("#readingcancel").text("CANCELLED"); 
+            outerthis.state = "cancelledimportsvgr"; 
+        } else if (outerthis.importSVGpathR()) {
+            setTimeout(importSVGpathRR, outerthis.timeoutcyclems); 
+        } else {
+            outerthis.state = "doneimportsvgr"; 
+            outerthis.processimportedSVG(); 
+        }
+    }
+    importSVGpathRR(); 
+}
+
+
+
 
 function ProcessToPathGroupings(rlistb, closedist)
 {
@@ -112,19 +248,19 @@ function ProcessToPathGroupings(rlistb, closedist)
     return res; 
 }
 
-function processimportedSVG(rlistb)
+SVGfileprocess.prototype.processimportedSVG = function()
 {
     var closedist = 3.2; 
-    var pathgroupings = ProcessToPathGroupings(rlistb, closedist); // just lists of indexes into rlistb
+    var pathgroupings = ProcessToPathGroupings(this.rlistb, closedist); // just lists of indexes into rlistb
     $("#readingcancel").text("done ProcessToPathGroupings"); 
 
     // rebuild this groupings directly from the above indexing sets
     var dlist = [ ]; 
-    for (var i = 0; i < rlistb.length; i++) 
-        dlist.push(rlistb[i].path.attrs.path); 
+    for (var i = 0; i < this.rlistb.length; i++) 
+        dlist.push(this.rlistb[i].path.attrs.path); 
 
 // should save these into objects to be passed between documents
-
+    var rlistb = this.rlistb; 
     $.each(pathgroupings, function(i, pathgrouping) {
         // form the area object
         var dgroup = [ ]; 
@@ -171,124 +307,4 @@ function processimportedSVG(rlistb)
 }
 
 
-
-function processSingleSVGpath(rlistb, d, cmatrix, stroke)
-{
-    var dtrans = Raphael.mapPath(d, cmatrix); // Raphael.transformPath(d, raphtranslist.join("")); 
-    if (dtrans.length <= 1)
-        return; // skip
-    if ((stroke == "none") || (stroke === undefined))
-        return; // skip
-        
-    if (spnums[stroke] === undefined) {
-        spnums[stroke] = ++spcount; 
-        $("#spnumcols").append($('<span id="spnum'+spcount+'">X</span>').css("background", stroke)); 
-    }
-    var spnum = spnums[stroke]; 
-    
-    var i0 = 0; 
-    var mi = 0; 
-    while (i0 < dtrans.length) {
-        var i1 = i0 + 1; 
-        while ((i1 < dtrans.length) && (dtrans[i1][0] != "M"))
-            i1++; 
-            
-        // this is the place to separate out the paths by M positions
-        var path = paper1.path(dtrans.slice(i0, i1)); 
-        path.attr({stroke:stroke, "stroke-width":2}); 
-        rlist.push(path); 
-        rlistb.push({path:path, spnum:spnum, d:d, mi:mi, cmatrix:cmatrix}); 
-        
-        i0 = i1; 
-        mi++; 
-    }
-}
-
-
-var Dtxt, Dtsvg; 
-function importSVG(txt, fnum)
-{
-    console.log(txt.length+" bytes"); 
-    Dtxt = txt; 
-    var tsvg = $($(txt).children()[0]).parent(); // seems not to work directly
-    Dtsvg = tsvg; 
-    
-    console.log("calc pixscale"); 
-    WorkOutPixelScale(txt, tsvg); 
-    var dscalebar = "M20,20l"+(100*mmpixwidth)+",0l0,5M20,20l0,"+(100*mmpixheight)+"l5,0"; 
-    paper1.path(dscalebar).attr("stroke", "#b66"); 
-
-    bcancelExIm = false; 
-    var timeoutcyclems = 10; 
-    var pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix() };
-    var pstack = [ ]; 
-    var cstack = [ tsvg ]; 
-    var mclassstroke = { }; 
-    tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{[^\}]*stroke:\s*([^;\s\}]+)/gi, function(a, b, c) { mclassstroke[b] = c; }); 
-    var rlistb = rlistbyfnum[fnum]; 
-    
-    function importSVGpathR() {
-        while (cstack.length == pback.pos) 
-            pback = pstack.pop(); 
-        if (cstack.length == 0) {
-            processimportedSVG(rlistbyfnum[fnum]); // calls out to the big one
-            return; 
-        }
-        var c = cstack.pop(); 
-        var tag = c.prop("tagName").toLowerCase(); 
-        var raphtranslist = pback.raphtranslist; 
-        var cmatrix = pback.cmatrix; 
-        if (c.attr("transform")) {
-            raphtranslist = raphtranslist.slice(); 
-            raphtranslist.push(c.attr("transform").replace(/([mtrs])\w+\s*\(([^\)]*)\)/gi, function(a, b, c) { return b.toLowerCase()+c+(b.match(/s/i) ? ",0,0" : ""); } )); 
-            cmatrix = paper1.path().transform(raphtranslist.join("")).matrix; 
-        }
-
-        var strokelist = pback.strokelist; 
-        var cstroke = c.attr("stroke") || c.css("stroke") || mclassstroke[c.attr("class")]; 
-        if (cstroke) {
-            strokelist = strokelist.slice(); 
-            strokelist.push(cstroke); 
-        } else {
-            cstroke = strokelist[strokelist.length - 1]; 
-        }
-        if (tag == "pattern") {
-            console.log("skip pattern"); 
-        } else if ((tag == "polygon") || (tag == "polygline")) {
-            var ppts = c.attr("points").split(/\s+|,/);
-            var x0 = ppts.shift(); 
-            var y0 = ppts.shift();
-            var d = 'M'+x0+','+y0+'L'+ppts.join(' ')+(tag == "polygon" ? "Z" : ""); 
-            processSingleSVGpath(rlistb, d, cmatrix, cstroke); 
-        } else if (tag == "circle") {
-            var cx = parseFloat(c.attr("cx"));
-            var cy = parseFloat(c.attr("cy")); 
-            var r = parseFloat(c.attr("r")); 
-            var d = "M"+(cx-r)+","+cy+"A"+r+","+r+",0,0,1,"+cx+","+(cy-r)+"A"+r+","+r+",0,1,1,"+(cx-r)+","+cy; 
-            processSingleSVGpath(rlistb, d, cmatrix, cstroke); 
-        } else if (tag == "rect") {
-            var x0 = parseFloat(c.attr("x"));
-            var y0 = parseFloat(c.attr("y")); 
-            var x1 = x0 + parseFloat(c.attr("width")); 
-            var y1 = y0 + parseFloat(c.attr("height")); 
-            var d = "M"+x0+","+y0+"L"+x0+","+y1+" "+x1+","+y1+" "+x1+","+y0+"Z"; 
-            processSingleSVGpath(rlistb, d, cmatrix, cstroke); 
-        } else if (tag == "path") {
-            processSingleSVGpath(rlistb, c.attr("d"), cmatrix, cstroke); 
-        } else {
-            pstack.push(pback); 
-            pback = { pos:cstack.length, raphtranslist:raphtranslist, strokelist:strokelist, cmatrix:cmatrix }; 
-            var cs = c.children(); 
-            for (var i = cs.length - 1; i >= 0; i--) 
-                cstack.push($(cs[i]));   // in reverse order for the stack
-        }
-        if (!bcancelExIm) {
-            $("#readingcancel").text(rlist.length+"/"+cstack.length); 
-            setTimeout(importSVGpathR, timeoutcyclems); 
-        } else {
-            $("#readingcancel").text("CANCELLED"); 
-        }
-    }
-    importSVGpathR(); 
-}
 

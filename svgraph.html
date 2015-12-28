@@ -82,6 +82,7 @@ var paper1scale = 1;
 var filenamelist = [ ]; 
 var rlistbyfnum = [ ]; 
 var rlist = [ ]; 
+var SVGprocesses = [ ]; 
 var pathselected = null; 
 var opts; 
 var collidestepout = 10, collidestepover = 10; 
@@ -154,8 +155,10 @@ function importSVGfiles(files)
         var fnum = filenamelist.length; 
         filenamelist.push(f.name); 
         rlistbyfnum.push([ ]); 
+        svgprocess = new SVGfileprocess(f.name, fnum); 
+        SVGprocesses.push(svgprocess); 
         var reader = new FileReader();
-        reader.onload = (function(e) { importSVG(reader.result, fnum); }); 
+        reader.onload = (function(e) { svgprocess.InitiateLoadingProcess(reader.result); }); 
         reader.readAsText(f); 
     }); 
 }
@@ -241,20 +244,24 @@ $(document).ready(setup);   // function to call only *after* page has finished l
 <p>Code is <a href="https://github.com/goatchurchprime/doesliverpool.github.io/">here</a></p>
 
 <p>Work to do:
-*file select dropdowns that refer to local banks of colours/scales/unified line calls that may be different and can be rerun
-*EPS conversion using pstoedit on the twisted server
-*select stock shape and type of material which is always underneath (allow for multiple sheets)
 *drop-down of the sizes of stock (ply) which gets plotted in brown as the area, and material (which generates the lookup for the feeds and speeds)
+*select stock shape and type of material which is always underneath (allow for multiple sheets)
+*avoid crashing on big files by using settimeout technology
+*batch up each object into json of [original svgpaths,transforms,sequences,islands,colours,scaletomm,boundingbox,filename,author], 
+*swap out colours make editable.  [cut, engrave1, engrave2]  -> generate as a 
+*be able to draw in minimal tiles off side of stock, post and recover from database file
+*layouts are saved as json objects and reimported, merged, etc.
+*pile objects along the right hand column in individual boxes
+*file select dropdowns that refer to local banks of colours/scales/unified line calls that may be different and can be rerun
+*zoom out all by default to scale the two laser board sizes in down the left hand side
+*EPS conversion using pstoedit on the twisted server
 *use colours or picking to specify the engraving curves
 *estimates of time to cut, which can be used to check if order of cut improving.  do cuts after each etch so abort still have working results
-*moving around by recording the transforms so can rerender and render the associated etching curves
-*slide things to the right onto the area if off the sides
 *begin relay packing within area and clearance bits
 *export that ply sheet and remove everything on it
 *allow this file to serve from BB, which should be on the net somewhere accessible to the Laser Machine
 *colour bits by stock material (colour, thickness, type)
 *twisted banks and serves out components for the cutter, previews what's being calculated elsewhere.  
-*layouts are saved as json objects and reimported, merged, etc.
 </p>
 
 </body>
