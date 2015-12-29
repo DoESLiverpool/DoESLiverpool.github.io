@@ -1,13 +1,14 @@
 
-var SVGfileprocess = function(fname, fnum) 
+var SVGfileprocess = function(fname, fnum, fadivid) 
 {
     this.fname = fname; 
     this.fnum = fnum; 
+    this.fadivid = fadivid; 
     this.state = "constructed"; 
+    this.bcancelIm = false; 
+    this.dfprocessstatus = "div#"+this.fadivid+" .fprocessstatus"; 
 }
 
-
-var spnums = { }, spcount = 0; 
 SVGfileprocess.prototype.WorkOutPixelScale = function() 
 {
     var sheight = this.tsvg.attr("height"); 
@@ -52,7 +53,7 @@ SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke)
         
     if (this.spnums[stroke] === undefined) {
         this.spnums[stroke] = ++this.spcount; 
-        $("#spnumcols").append($('<span id="spnum'+this.spcount+'">X</span>').css("background", stroke)); 
+        $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+this.spcount+'">X</span>').css("background", stroke)); 
     }
     var spnum = this.spnums[stroke]; 
     
@@ -130,7 +131,7 @@ SVGfileprocess.prototype.importSVGpathR = function()
         for (var i = cs.length - 1; i >= 0; i--) 
             this.cstack.push($(cs[i]));   // in reverse order for the stack
     }
-    $("#readingcancel").text(this.rlistb.length+"/"+this.cstack.length); 
+    $(this.dfprocessstatus).text(this.rlistb.length+"/"+this.cstack.length); 
     return true; 
 }
 
@@ -141,7 +142,6 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     this.tsvg = $($(txt).children()[0]).parent(); // seems not to work directly as $(txt).find("svg")
     this.WorkOutPixelScale();  
 
-    this.bcancelIm = false; 
     this.timeoutcyclems = 10; 
     this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix() };
     this.pstack = [ ]; 
@@ -155,8 +155,8 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     this.state = "importsvgr"; 
     var outerthis = this; 
     function importSVGpathRR() {
-        if (outerthis.bcancelExIm) {
-            $("#readingcancel").text("CANCELLED"); 
+        if (outerthis.bcancelIm) {
+            $(this.dfprocessstatus).text("CANCELLED"); 
             outerthis.state = "cancelledimportsvgr"; 
         } else if (outerthis.importSVGpathR()) {
             setTimeout(importSVGpathRR, outerthis.timeoutcyclems); 
@@ -167,8 +167,6 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     }
     importSVGpathRR(); 
 }
-
-
 
 
 function ProcessToPathGroupings(rlistb, closedist)
@@ -185,7 +183,7 @@ function ProcessToPathGroupings(rlistb, closedist)
     var jdseqs = [ ];  // indexes dlist
     for (var ispnum = 0; ispnum < spnumscp.length; ispnum++) {
         var spnum = spnumscp[ispnum]; 
-        $("#readingcancel").text("joining spnum="+spnum); 
+        $(this.dfprocessstatus).text("joining spnum="+spnum); 
         var dlist = [ ]; 
         var npathsc = 0; 
         for (var i = 0; i < rlistb.length; i++) {
@@ -202,25 +200,25 @@ function ProcessToPathGroupings(rlistb, closedist)
     // jdseqs = [ [i1, i2, i3,...] sequence of dlist[ii/2|0], bfore=((ii%2)==1 ]
 
     // list of paths not included in any cycle
-    $("#readingcancel").text("getsingletlist"); 
+    $(this.dfprocessstatus).text("getsingletlist"); 
     var singletslist = PolySorting.GetSingletsList(jdseqs, dlist.length)
 
     // build the dlist without any holes parallel to rlistb to use for groupings
     var dlist = [ ]; 
     for (var i = 0; i < rlistb.length; i++) 
         dlist.push(rlistb[i].path.attrs.path); 
-    $("#readingcancel").text("concat JDgeoseqs"); 
+    $(this.dfprocessstatus).text("concat JDgeoseqs"); 
     var jdgeos = [ ]; 
     for (var i = 0; i < jdseqs.length; i++) {
         jdgeos.push(PolySorting.JDgeoseq(jdseqs[i], dlist)); // concatenated sequences of paths forming the boundaries
     }
 
     // groups of jdsequences forming outercontour, islands, singlets 
-    $("#readingcancel").text("FindAreaGroupingsD"); 
+    $(this.dfprocessstatus).text("FindAreaGroupingsD"); 
     var res = [ ]; 
     var cboundislands = PolySorting.FindAreaGroupingsD(jdgeos); 
     
-    $("#readingcancel").text("oriented islands"); 
+    $(this.dfprocessstatus).text("oriented islands"); 
     for (var j = 0; j < cboundislands.length; j++) {
         var lres = [ ]; 
         var cboundisland = cboundislands[j]; 
@@ -235,7 +233,7 @@ function ProcessToPathGroupings(rlistb, closedist)
         res.push(lres); 
     }
     
-    $("#readingcancel").text("singlets to groupings"); 
+    $(this.dfprocessstatus).text("singlets to groupings"); 
     for (var i = 0; i < singletslist.length; i++) {
         var ic = singletslist[i]; 
         var dpath = dlist[ic]; 
@@ -252,7 +250,7 @@ SVGfileprocess.prototype.processimportedSVG = function()
 {
     var closedist = 3.2; 
     var pathgroupings = ProcessToPathGroupings(this.rlistb, closedist); // just lists of indexes into rlistb
-    $("#readingcancel").text("done ProcessToPathGroupings"); 
+    $(this.dfprocessstatus).text("done ProcessToPathGroupings"); 
 
     // rebuild this groupings directly from the above indexing sets
     var dlist = [ ]; 
@@ -305,6 +303,4 @@ SVGfileprocess.prototype.processimportedSVG = function()
         ); 
     }); 
 }
-
-
 

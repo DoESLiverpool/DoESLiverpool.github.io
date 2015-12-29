@@ -80,7 +80,6 @@ function TestCollision(dx, dy)
 var paper1 = null; 
 var paper1scale = 1; 
 var filenamelist = [ ]; 
-var rlistbyfnum = [ ]; 
 var rlist = [ ]; 
 var SVGprocesses = [ ]; 
 var pathselected = null; 
@@ -154,8 +153,23 @@ function importSVGfiles(files)
         }
         var fnum = filenamelist.length; 
         filenamelist.push(f.name); 
-        rlistbyfnum.push([ ]); 
-        svgprocess = new SVGfileprocess(f.name, fnum); 
+        var fadivid = 'fa'+fnum; 
+        $("div#filearea").append('<div id="'+fadivid+'"></div>'); 
+        $("div#"+fadivid).append('<b>'+f.name+'</b>: '); 
+        $("div#"+fadivid).append('<span class="spnumcols"></span>'); 
+        $("div#"+fadivid).append('<span class="fprocessstatus">VV</span>'); 
+        $("div#"+fadivid).append('<span class="groupprocess">Group</span>'); 
+        
+        var svgprocess = new SVGfileprocess(f.name, fnum, fadivid); 
+        $("div#"+fadivid+" .fprocessstatus").click(function() { svgprocess.bcancelIm = true; }); 
+        $("div#"+fadivid+" .groupprocess").click(function() { 
+            if ($(this).hasClass("selected")) {
+                $(this).removeClass("selected"); 
+            } else {
+                $(this).addClass("selected"); 
+            }
+        }); 
+        
         SVGprocesses.push(svgprocess); 
         var reader = new FileReader();
         reader.onload = (function(e) { svgprocess.InitiateLoadingProcess(reader.result); }); 
@@ -186,7 +200,6 @@ function setup()
         importSVGfiles(e.originalEvent.dataTransfer.files); 
     }); 
 
-    $("#readingcancel").click(function() { bcancelExIm = true; }); 
     $("#scaledouble").click(function() { $("#scaledouble").text($("#scaledouble").text() == "*2" ? "/2" : "*2"); }); 
     $("#scale").click(function() { 
         paper1scale *= ($("#scaledouble").text() == "*2" ? 2 : 0.5); 
@@ -218,23 +231,32 @@ $(document).ready(setup);   // function to call only *after* page has finished l
 <style>
 #err { color:red }
 .dropfileselected { background: #ffa }
-#readingcancel:hover { background: red; cursor: pointer }
 #scale:hover, #scaledouble:hover { background:yellow; cursor:pointer }
-#spnumcols:hover { cursor:pointer; }
-#spnumcols span { border: thin black solid }
-#spnumcols span:hover { border-color:white }
+div#filearea { z-index: 10; position: fixed; right:10px; background:white; border: thin blue solid }
+div#filearea  { cursor:pointer; }
+
+div#filearea .fprocessstatus:hover { background: red; cursor: pointer }
+div#filearea .spnumcols span { border: thin black solid }
+div#filearea .spnumcols span:hover { border-color:white }
+
+div#filearea .groupprocess { background:#ffc }
+div#filearea .groupprocess:hover { background:#ccf }
+div#filearea .groupprocess.selected { background:#ee0 }
+
 
 </style>
 
 </head>
 <body bgcolor="#e8e8e8">
   
+<div id="filearea">
+    FileArea
+</div>
 <div>
     <input type="button" value="exportSVG" id="exportSVG"/>
     <input type="button" value="exportPLT" id="exportPLT"/>
     <input type="button" value="MOVE!" id="movecollide">
     <span id="scale">1</span><span id="scaledouble">*2</span>
-    <span id="spnumcols"></span>
     <input type="file" id="files" name="files[]" multiple />
     <span id="pixscale">pix-scaleX(mm):<span id="pixscaleX"></span>  pix-scaleY(mm):<span id="pixscaleY"></span></span>
     <span id="readingcancel">0/0</span>
