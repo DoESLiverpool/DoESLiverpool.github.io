@@ -3,7 +3,7 @@ PolySorting = {
 
 FindPathOrientation: function(darea)
 {
-    var iL = 1; 
+    var iL = 0; 
     for (var i = 1; i < darea.length; i++) {
         if (darea[i][darea[i].length - 2] < darea[iL][darea[iL].length - 2]) {
             iL = i; 
@@ -14,8 +14,11 @@ FindPathOrientation: function(darea)
     var xf, yf, xb, yb; 
     var iF = iL + 1; 
     while (iF != iL) {
-        if (iF == darea.length)
+        if (iF == darea.length) {
             iF = 0; 
+            if (iF == iL)
+                break; 
+        }
         xF = darea[iF][darea[iF].length - 2]; 
         yF = darea[iF][darea[iF].length - 1]; 
         if ((xF != x) || (yF != y))
@@ -38,11 +41,11 @@ FindPathOrientation: function(darea)
         
     var vxF = xF - x;  
     var vyF = yF - y;  
-    console.assert(vxF >= 0.0); 
+    console.assert(vxF >= 0.0, vxF); 
     var diamondF = vyF / (Math.abs(vyF) + vxF); 
     var vxB = xB - x;  
     var vyB = yB - y;  
-    console.assert(vxB >= 0.0); 
+    console.assert(vxB >= 0.0, vxB); 
     var diamondB = vyB / (Math.abs(vyB) + vxB); 
     return diamondB <= diamondF; 
 },

@@ -158,7 +158,7 @@ function importSVGfiles(files)
         $("div#"+fadivid).append('<b>'+f.name+'</b>: '); 
         $("div#"+fadivid).append('<span class="spnumcols"></span>'); 
         $("div#"+fadivid).append('<span class="fprocessstatus">VV</span>'); 
-        $("div#"+fadivid).append('<span class="groupprocess">Group</span>'); 
+        $("div#"+fadivid).append('<span class="groupprocess">GGoup</span>'); 
         
         var svgprocess = new SVGfileprocess(f.name, fnum, fadivid); 
         $("div#"+fadivid+" .fprocessstatus").click(function() { svgprocess.bcancelIm = true; }); 
@@ -167,6 +167,8 @@ function importSVGfiles(files)
                 $(this).removeClass("selected"); 
             } else {
                 $(this).addClass("selected"); 
+                if (svgprocess.state === "doneimportsvgr")
+                    svgprocess.processimportedSVG(); 
             }
         }); 
         
@@ -237,6 +239,7 @@ div#filearea  { cursor:pointer; }
 
 div#filearea .fprocessstatus:hover { background: red; cursor: pointer }
 div#filearea .spnumcols span { border: thin black solid }
+div#filearea .spnumcols span.selected { color: white }
 div#filearea .spnumcols span:hover { border-color:white }
 
 div#filearea .groupprocess { background:#ffc }

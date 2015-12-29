@@ -54,6 +54,12 @@ SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke)
     if (this.spnums[stroke] === undefined) {
         this.spnums[stroke] = ++this.spcount; 
         $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+this.spcount+'">X</span>').css("background", stroke)); 
+        $('div#'+this.fadivid+' .spnumcols span.spnum'+this.spcount).click(function() {
+            if ($(this).hasClass("selected")) 
+                $(this).removeClass("selected"); 
+            else
+                $(this).addClass("selected"); 
+        }); 
     }
     var spnum = this.spnums[stroke]; 
     
@@ -147,39 +153,37 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     this.pstack = [ ]; 
     this.cstack = [ this.tsvg ]; 
     this.mclassstroke = { }; 
+    var mclassstroke = this.mclassstroke; 
     this.tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{[^\}]*stroke:\s*([^;\s\}]+)/gi, function(a, b, c) { mclassstroke[b] = c; }); 
     this.rlistb = [ ]; 
     this.spnums = { }; 
     this.spcount = [ ]; 
     
+    // autorun the group process (should distinguish easy cases)
+    if (txt.length < 10000)
+        $("div#"+this.fadivid+" .groupprocess").addClass("selected"); 
+    
     this.state = "importsvgr"; 
     var outerthis = this; 
     function importSVGpathRR() {
-        if (outerthis.bcancelIm) {
+        if (outerthis.bcancelExIm) {
             $(this.dfprocessstatus).text("CANCELLED"); 
             outerthis.state = "cancelledimportsvgr"; 
         } else if (outerthis.importSVGpathR()) {
             setTimeout(importSVGpathRR, outerthis.timeoutcyclems); 
         } else {
             outerthis.state = "doneimportsvgr"; 
-            outerthis.processimportedSVG(); 
+            if ($("div#"+this.fadivid+" .groupprocess").hasClass("selected"))
+                outerthis.processimportedSVG(); 
         }
     }
     importSVGpathRR(); 
 }
 
 
-function ProcessToPathGroupings(rlistb, closedist)
+function ProcessToPathGroupings(rlistb, closedist, spnumscp)
 {
-    // extract the spnums
-    var mspnums = { }; 
-    for (var i = 0; i < rlistb.length; i++) {
-        mspnums[rlistb[i].spnum] = 1; 
-    }
-    var spnums = Object.keys(mspnums); 
-    
     // form the closed path sequences per spnum
-    var spnumscp = spnums;  // this filters out the paths considered for forming cycles by colour
     var jdseqs = [ ];  // indexes dlist
     for (var ispnum = 0; ispnum < spnumscp.length; ispnum++) {
         var spnum = spnumscp[ispnum]; 
@@ -249,8 +253,16 @@ function ProcessToPathGroupings(rlistb, closedist)
 SVGfileprocess.prototype.processimportedSVG = function()
 {
     var closedist = 3.2; 
-    var pathgroupings = ProcessToPathGroupings(this.rlistb, closedist); // just lists of indexes into rlistb
-    $(this.dfprocessstatus).text("done ProcessToPathGroupings"); 
+
+    var spnumscp = [ ]; 
+    $('div#'+this.fadivid+' .spnumcols span').each(function(i, v)  { 
+        if (!$(v).hasClass("selected"))
+            spnumscp.push(parseInt($(v).attr("class").match(/\d+/g)[0]));  // spnum(\d+) 
+    }); 
+    console.log("hghghg", spnumscp); 
+    
+    var pathgroupings = ProcessToPathGroupings(this.rlistb, closedist, spnumscp); // just lists of indexes into rlistb
+    $(this.dfprocessstatus).text("donegroup"); 
 
     // rebuild this groupings directly from the above indexing sets
     var dlist = [ ]; 
