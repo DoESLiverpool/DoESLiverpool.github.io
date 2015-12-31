@@ -269,11 +269,13 @@ div#filearea .groupprocess.selected { background:#ee0 }
 <p>Code is <a href="https://github.com/goatchurchprime/doesliverpool.github.io/">here</a></p>
 
 <p>Work to do:
+* graphics abstraction drawPath -- should handle svg and note if it's a onesided or 2 sided; or the differences between the two styles or also put out invisible lines
+
+
 *drop-down of the sizes of stock (ply) which gets plotted in brown as the area, and material (which generates the lookup for the feeds and speeds)
 *select stock shape and type of material which is always underneath (allow for multiple sheets)
 *avoid crashing on big files by using settimeout technology
 *batch up each object into json of [original svgpaths,transforms,sequences,islands,colours,scaletomm,boundingbox,filename,author], 
-*swap out colours make editable.  [cut, engrave1, engrave2]  -> generate as a 
 *be able to draw in minimal tiles off side of stock, post and recover from database file
 *layouts are saved as json objects and reimported, merged, etc.
 *pile objects along the right hand column in individual boxes

@@ -43,25 +43,44 @@ SVGfileprocess.prototype.WorkOutPixelScale = function()
     $("#pixscaleY").text(this.mmpixheight.toFixed(3)); 
 }
     
-SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke)
+SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
 {
+    var cclass = cc.attr("class"); 
+    var Dcolonsubsetname = (this.btunnelxtype ? ":"+cc.attr("Dsubsetname") : ""); 
+    // see this.mclassstyle[cclass] for more data
+
     var dtrans = Raphael.mapPath(d, cmatrix); // Raphael.transformPath(d, raphtranslist.join("")); 
     if (dtrans.length <= 1)
         return; // skip
-    if ((stroke == "none") || (stroke === undefined))
-        return; // skip
         
-    if (this.spnums[stroke] === undefined) {
-        this.spnums[stroke] = ++this.spcount; 
-        $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+this.spcount+'">X</span>').css("background", stroke)); 
+    var fillcolour = (this.mclassstyle[cclass] !== undefined ? this.mclassstyle[cclass]["fill"] : undefined); 
+    if (fillcolour == "none")
+        fillcolour = undefined; 
+    
+    var strokesubset = (this.btunnelxtype ? stroke+":"+cc.attr("Dsubsetname")+":"+fillcolour : stroke); 
+    if ((stroke == "none") || (stroke === undefined)) {
+        if (!cclass)
+            return; // skip
+        else
+            stroke = fillcolour; 
+    }
+    
+    // convert all to extended classes with these strokes in?
+    var strokecolour; 
+    if (this.spnums[strokesubset] === undefined) {
+        this.spcount++; 
+        strokecolour = (Dcolonsubsetname ? Raphael.getColor(1.0) : stroke); 
+        this.spnums[strokesubset] = {spnum:this.spcount, strokecolour:strokecolour}; 
+        $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+this.spcount+'" title="'+strokesubset+'">'+(fillcolour?'O':'X')+'</span>').css("background", strokecolour)); 
         $('div#'+this.fadivid+' .spnumcols span.spnum'+this.spcount).click(function() {
             if ($(this).hasClass("selected")) 
                 $(this).removeClass("selected"); 
             else
                 $(this).addClass("selected"); 
-        }); 
+        });
     }
-    var spnum = this.spnums[stroke]; 
+    var spnum = this.spnums[strokesubset].spnum; 
+    var strokecolour = this.spnums[strokesubset].strokecolour; 
     
     var i0 = 0; 
     var mi = 0; 
@@ -69,10 +88,9 @@ SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke)
         var i1 = i0 + 1; 
         while ((i1 < dtrans.length) && (dtrans[i1][0] != "M"))
             i1++; 
-            
         // this is the place to separate out the paths by M positions
         var path = paper1.path(dtrans.slice(i0, i1)); 
-        path.attr({stroke:stroke, "stroke-width":2}); 
+        path.attr({stroke:strokecolour, "stroke-width":2.0}); 
         rlist.push(path); 
         this.rlistb.push({path:path, spnum:spnum, d:d, mi:mi, cmatrix:cmatrix}); 
         
@@ -86,54 +104,63 @@ SVGfileprocess.prototype.importSVGpathR = function()
     while (this.cstack.length == this.pback.pos) 
         this.pback = this.pstack.pop(); 
     if (this.cstack.length == 0) {
-        //processimportedSVG(rlistbyfnum[fnum]); // calls out to the big one
         return false; 
     }
-    var c = this.cstack.pop(); 
-    var tag = c.prop("tagName").toLowerCase(); 
+    var cc = this.cstack.pop(); 
+    var tag = cc.prop("tagName").toLowerCase(); 
     var raphtranslist = this.pback.raphtranslist; 
     var cmatrix = this.pback.cmatrix; 
-    if (c.attr("transform")) {
+    if (cc.attr("transform")) {
         raphtranslist = raphtranslist.slice(); 
-        raphtranslist.push(c.attr("transform").replace(/([mtrs])\w+\s*\(([^\)]*)\)/gi, function(a, b, c) { return b.toLowerCase()+c+(b.match(/s/i) ? ",0,0" : ""); } )); 
+        raphtranslist.push(cc.attr("transform").replace(/([mtrs])\w+\s*\(([^\)]*)\)/gi, function(a, b, c) { return b.toLowerCase()+c+(b.match(/s/i) ? ",0,0" : ""); } )); 
         cmatrix = paper1.path().transform(raphtranslist.join("")).matrix; 
     }
 
     var strokelist = this.pback.strokelist; 
-    var cstroke = c.attr("stroke") || c.css("stroke") || this.mclassstroke[c.attr("class")]; 
+    var cclass = cc.attr("class"); 
+    var cstroke = cc.attr("stroke") || cc.css("stroke") || this.mclassstyle["stroke"]; 
     if (cstroke) {
         strokelist = strokelist.slice(); 
         strokelist.push(cstroke); 
     } else {
         cstroke = strokelist[strokelist.length - 1]; 
     }
-    if (tag == "pattern") {
+
+    if (tag == "title") {
+        this.btunnelxtype = (cc.text().match(/TunnelX/) != null); 
+        if (this.btunnelxtype) 
+            console.log("Detected TunnelX type"); 
+    } else if (tag == "pattern") {
         console.log("skip pattern"); 
+    } else if (tag == "clippath") {
+        console.log("skip clippath"); // will deploy Raphael.pathIntersection(path1, path2) eventually
+        // <clipPath id="cp1"> <path d="M497.7 285.2 Z" Dsubsetname="osa111"/></clipPath>
+        // then clippath="url(#cp1)" in a path for a trimmed symbol type
     } else if ((tag == "polygon") || (tag == "polygline")) {
-        var ppts = c.attr("points").split(/\s+|,/);
+        var ppts = cc.attr("points").split(/\s+|,/);
         var x0 = ppts.shift(); 
         var y0 = ppts.shift();
         var d = 'M'+x0+','+y0+'L'+ppts.join(' ')+(tag == "polygon" ? "Z" : ""); 
-        this.processSingleSVGpath(d, cmatrix, cstroke); 
+        this.processSingleSVGpath(d, cmatrix, cstroke, cc); 
     } else if (tag == "circle") {
-        var cx = parseFloat(c.attr("cx"));
-        var cy = parseFloat(c.attr("cy")); 
-        var r = parseFloat(c.attr("r")); 
+        var cx = parseFloat(cc.attr("cx"));
+        var cy = parseFloat(cc.attr("cy")); 
+        var r = parseFloat(cc.cattr("r")); 
         var d = "M"+(cx-r)+","+cy+"A"+r+","+r+",0,0,1,"+cx+","+(cy-r)+"A"+r+","+r+",0,1,1,"+(cx-r)+","+cy; 
-        this.processSingleSVGpath(d, cmatrix, cstroke); 
+        this.processSingleSVGpath(d, cmatrix, cstroke, cc); 
     } else if (tag == "rect") {
-        var x0 = parseFloat(c.attr("x"));
-        var y0 = parseFloat(c.attr("y")); 
-        var x1 = x0 + parseFloat(c.attr("width")); 
-        var y1 = y0 + parseFloat(c.attr("height")); 
+        var x0 = parseFloat(cc.attr("x"));
+        var y0 = parseFloat(cc.attr("y")); 
+        var x1 = x0 + parseFloat(cc.attr("width")); 
+        var y1 = y0 + parseFloat(cc.attr("height")); 
         var d = "M"+x0+","+y0+"L"+x0+","+y1+" "+x1+","+y1+" "+x1+","+y0+"Z"; 
-        this.processSingleSVGpath(d, cmatrix, cstroke); 
+        this.processSingleSVGpath(d, cmatrix, cstroke, cc); 
     } else if (tag == "path") {
-        this.processSingleSVGpath(c.attr("d"), cmatrix, cstroke); 
+        this.processSingleSVGpath(cc.attr("d"), cmatrix, cstroke, cc); 
     } else {
         this.pstack.push(this.pback); 
         this.pback = { pos:this.cstack.length, raphtranslist:raphtranslist, strokelist:strokelist, cmatrix:cmatrix }; 
-        var cs = c.children(); 
+        var cs = cc.children(); 
         for (var i = cs.length - 1; i >= 0; i--) 
             this.cstack.push($(cs[i]));   // in reverse order for the stack
     }
@@ -143,6 +170,7 @@ SVGfileprocess.prototype.importSVGpathR = function()
 
 SVGfileprocess.prototype.InitiateLoadingProcess = function(txt) 
 {
+    // NB "stroke" actually means colour in SVG lingo
     this.state = "loading"; 
     this.txt = txt; 
     this.tsvg = $($(txt).children()[0]).parent(); // seems not to work directly as $(txt).find("svg")
@@ -152,12 +180,20 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix() };
     this.pstack = [ ]; 
     this.cstack = [ this.tsvg ]; 
-    this.mclassstroke = { }; 
-    var mclassstroke = this.mclassstroke; 
-    this.tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{[^\}]*stroke:\s*([^;\s\}]+)/gi, function(a, b, c) { mclassstroke[b] = c; }); 
+    this.mclassstyle = { }; 
+    var mclassstyle = this.mclassstyle; 
+    this.tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{([^}]*)/gi, function(a, b, c) { 
+        mclassstyle[b] = { }; 
+        c.replace(/([^:;]*):([^:;]*)/gi, function(a1, b1, c1) { 
+            mclassstyle[b][b1.trim().toLowerCase()] = c1.trim(); 
+        }); 
+    }); 
+    console.log(mclassstyle); 
+    
     this.rlistb = [ ]; 
     this.spnums = { }; 
-    this.spcount = [ ]; 
+    this.spcount = 0; 
+    this.btunnelxtype = false; 
     
     // autorun the group process (should distinguish easy cases)
     if (txt.length < 10000)
@@ -166,7 +202,7 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     this.state = "importsvgr"; 
     var outerthis = this; 
     function importSVGpathRR() {
-        if (outerthis.bcancelExIm) {
+        if (outerthis.bcancelIm) {
             $(this.dfprocessstatus).text("CANCELLED"); 
             outerthis.state = "cancelledimportsvgr"; 
         } else if (outerthis.importSVGpathR()) {
@@ -262,7 +298,8 @@ SVGfileprocess.prototype.processimportedSVG = function()
     console.log("hghghg", spnumscp); 
     
     var pathgroupings = ProcessToPathGroupings(this.rlistb, closedist, spnumscp); // just lists of indexes into rlistb
-    $(this.dfprocessstatus).text("donegroup"); 
+    
+    $(this.dfprocessstatus).text("doneG"); 
 
     // rebuild this groupings directly from the above indexing sets
     var dlist = [ ]; 
