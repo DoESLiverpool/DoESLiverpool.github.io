@@ -46,7 +46,6 @@ SVGfileprocess.prototype.WorkOutPixelScale = function()
 SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
 {
     var cclass = cc.attr("class"); 
-    var Dcolonsubsetname = (this.btunnelxtype ? ":"+cc.attr("Dsubsetname") : ""); 
     // see this.mclassstyle[cclass] for more data
 
     var dtrans = Raphael.mapPath(d, cmatrix); // Raphael.transformPath(d, raphtranslist.join("")); 
@@ -66,12 +65,14 @@ SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
     }
     
     // convert all to extended classes with these strokes in?
-    var strokecolour; 
-    if (this.spnums[strokesubset] === undefined) {
-        this.spcount++; 
-        strokecolour = (Dcolonsubsetname ? Raphael.getColor(1.0) : stroke); 
-        this.spnums[strokesubset] = {spnum:this.spcount, strokecolour:strokecolour}; 
-        $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+this.spcount+'" title="'+strokesubset+'">'+(fillcolour?'O':'X')+'</span>').css("background", strokecolour)); 
+    if (this.spnummap[strokesubset] === undefined) {
+        var strokecolour = (this.btunnelxtype ? Raphael.getColor(1.0) : stroke); 
+        var spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour, fillcolour:fillcolour }; 
+        if (this.btunnelxtype)
+            spnumobj["subsetname"] = cc.attr("Dsubsetname"); 
+        this.spnummap[strokesubset] = spnumobj.spnum; 
+        this.spnumlist.push(spnumobj); 
+        $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+spnumobj.spnum+'" title="'+strokesubset+'">'+(fillcolour?'O':'X')+'</span>').css("background", strokecolour)); 
         $('div#'+this.fadivid+' .spnumcols span.spnum'+this.spcount).click(function() {
             if ($(this).hasClass("selected")) 
                 $(this).removeClass("selected"); 
@@ -79,8 +80,9 @@ SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
                 $(this).addClass("selected"); 
         });
     }
-    var spnum = this.spnums[strokesubset].spnum; 
-    var strokecolour = this.spnums[strokesubset].strokecolour; 
+    var spnum = this.spnummap[strokesubset]; 
+    var spnumobj = this.spnumlist[spnum]; 
+    var strokecolour = spnumobj.strokecolour; 
     
     var i0 = 0; 
     var mi = 0; 
@@ -118,7 +120,7 @@ SVGfileprocess.prototype.importSVGpathR = function()
 
     var strokelist = this.pback.strokelist; 
     var cclass = cc.attr("class"); 
-    var cstroke = cc.attr("stroke") || cc.css("stroke") || this.mclassstyle["stroke"]; 
+    var cstroke = cc.attr("stroke") || cc.css("stroke") || (this.mclassstyle[cclass] && this.mclassstyle[cclass]["stroke"]); 
     if (cstroke) {
         strokelist = strokelist.slice(); 
         strokelist.push(cstroke); 
@@ -191,9 +193,9 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     console.log(mclassstyle); 
     
     this.rlistb = [ ]; 
-    this.spnums = { }; 
-    this.spcount = 0; 
-    this.btunnelxtype = false; 
+    this.spnumlist = [ ]; 
+    this.spnummap = { }; // maps into the above
+    this.btunnelxtype = false;  // till it gets set on loading
     
     // autorun the group process (should distinguish easy cases)
     if (txt.length < 10000)
@@ -216,6 +218,40 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     importSVGpathRR(); 
 }
 
+function ProcessToPathGroupingsTunnelX(rlistb, spnumlist)
+{
+    var subsetnamemaps = { }; 
+    for (var i = 0; i < rlistb.length; i++) {
+        var spnumobj = spnumlist[rlistb[i].spnum]; 
+        if (spnumobj.fillcolour !== undefined) {
+            var subsetname = spnumobj.subsetname; 
+            if (subsetnamemaps[subsetname] === undefined) 
+                subsetnamemaps[subsetname] = [ ]; 
+            subsetnamemaps[subsetname].push([i*2+1]); 
+        }
+    }
+
+    var subsetnames = Object.keys(subsetnamemaps); 
+    res = [ ]; 
+    for (var i = 0; i < subsetnames.length; i++) {
+        var lres = subsetnamemaps[subsetnames[i]]; 
+        lres.push([]); // the list of engraving edges
+        res.push(lres); 
+    }
+
+    // engraving edge groups
+    for (var i = 0; i < rlistb.length; i++) {
+        var spnumobj = spnumlist[rlistb[i].spnum]; 
+        if (spnumobj.fillcolour === undefined) {
+            var subsetname = spnumobj.subsetname; 
+            if (subsetnamemaps[subsetname] !== undefined) 
+                subsetnamemaps[subsetname][subsetnamemaps[subsetname].length-1].push(i); 
+        }
+    }
+
+    console.log("resresX", res); 
+    return res; 
+}
 
 function ProcessToPathGroupings(rlistb, closedist, spnumscp)
 {
@@ -288,6 +324,7 @@ function ProcessToPathGroupings(rlistb, closedist, spnumscp)
 
 SVGfileprocess.prototype.processimportedSVG = function()
 {
+    // could this be converted into a callback
     var closedist = 3.2; 
 
     var spnumscp = [ ]; 
@@ -297,7 +334,8 @@ SVGfileprocess.prototype.processimportedSVG = function()
     }); 
     console.log("hghghg", spnumscp); 
     
-    var pathgroupings = ProcessToPathGroupings(this.rlistb, closedist, spnumscp); // just lists of indexes into rlistb
+    // lists of indexes into rlistb specifying the linked boundaries and islands (*2+(bfore?1:0)), and engraving lines in the last list
+    var pathgroupings = (this.btunnelxtype ? ProcessToPathGroupingsTunnelX(this.rlistb, this.spnumlist) : ProcessToPathGroupings(this.rlistb, closedist, spnumscp)); 
     
     $(this.dfprocessstatus).text("doneG"); 
 
