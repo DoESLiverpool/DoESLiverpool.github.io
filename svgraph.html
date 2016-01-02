@@ -20,9 +20,16 @@ function exportSVG()
     a.click();
 }
 
+
 var bcancelExIm = false; 
+var cosang = 5; 
+var cosangdot = Math.cos(cosang*Math.PI/180); 
 function exportPLT()
 {
+    var svgprocess = SVGprocesses[SVGprocesses.length - 1]; 
+    var rlistb = svgprocess.rlistb; 
+    var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
+    
     var lplt = [ "IN;\n", "WU0;\n" ]; 
     var samplerateunit = 0.9; 
     var fac = 40/mmpixwidth; // PLT file operates at 40units per pixel
@@ -31,21 +38,22 @@ function exportPLT()
     bcancelExIm = false; 
     $("#readingcancel").text("exportPLT"); 
     function exportPLTpathR() {
-        var path = rlist[i]; 
-        var pl = path.getTotalLength(); 
-        if (pl != 0.0) {
-            var nsamples = Math.ceil(pl/samplerateunit); 
-            var spnum = spnums[path.attr("stroke")]; 
-            lplt.push("SP"+spnum+";\n"); 
-            lplt.push("LT;\n"); 
-            for (var j = 0; j <= nsamples; j++) {
-                var p = path.getPointAtLength(pl*(j/nsamples)); 
-                lplt.push((j == 0 ? "PU" : "PD")+(p.x*fac).toFixed(3)+" "+(ytop-p.y*fac).toFixed(3)+"\n"); 
-            }
+        var path = rlistb[i].path; 
+        var fpts = PolySorting.flattenpath(path.attr("path"), cosangdot) 
+        
+        // uncomment to plot the flattenpath for debug viewing
+        //var Lfpts = [ ]; for (var Di = 0; Di < fpts.length; Di++); Lfpts.push(fpts[Di][0]+","+fpts[Di][1]); 
+        //paper1.path("M"+Lfpts.join("L")).attr("stroke", "red");  
+        
+        var spnum = rlistb[i].spnum; 
+        lplt.push("SP"+spnum+";\n"); 
+        lplt.push("LT;\n"); 
+        for (var j = 0; j < fpts.length; j++) {
+            lplt.push((j == 0 ? "PU" : "PD")+(fpts[j][0]*fac).toFixed(3)+" "+(ytop-fpts[j][1]*fac).toFixed(3)+"\n"); 
         }
         if (bcancelExIm) {
             return; 
-        } else if (++i < rlist.length) {
+        } else if (++i < rlistb.length) {
             setTimeout(exportPLTpathR, 1); 
         } else {
             lplt.push("SP0;\n"); 
@@ -167,7 +175,7 @@ function importSVGfiles(files)
                 $(this).removeClass("selected"); 
             } else {
                 $(this).addClass("selected"); 
-                if (svgprocess.state === "doneimportsvgr")
+                if (svgprocess.state == "doneimportsvgr")
                     svgprocess.processimportedSVG(); 
             }
         }); 
@@ -180,13 +188,25 @@ function importSVGfiles(files)
 }
 
 
-var rect1;
+var Rmmscalebar = null; 
+var Drect1;
 function setup()
 {
     $("#exportSVG").click(exportSVG); 
     $("#exportPLT").click(exportPLT); 
     $("#movecollide").click(MoveCollide); 
     $("#files").change(function(e) { importSVGfiles(e.target.files); });  
+    $("#mmpixwidth").change(function() { 
+        if (Rmmscalebar != null) {
+            Rmmscalebar.remove(); 
+            Rmmscalebar = null; 
+        }
+        var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
+        var woodwidth = 100; 
+        var woodheight = 100; 
+        Rmmscalebar = paper1.path("M10,10h"+(woodwidth*mmpixwidth)+"v5 M10,10v"+(woodheight*mmpixwidth)+"h5").attr("stroke", "#888"); 
+    }); 
+    
 
     $("#paper1").on('dragover', function(e) {
         e.stopPropagation(); e.preventDefault(); 
@@ -213,18 +233,19 @@ function setup()
     
     // setup the raphael paper and bits
     paper1 = Raphael("paper1", 1300, 800);
-    rect1 = paper1.path("M20,30 L100,122 L40, 100 Z").attr({fill: "orange"});
+    Drect1 = paper1.path("M20,30 L100,122 L40, 100 Z").attr({fill: "orange"});
     rect2 = paper1.path("M220,30 L300,122 L290, 100 Z").attr({fill: "blue"});
     var data = $("#paper1 svg").attr("id", "svg1"); 
     
     // scratch object
     var brotatemode = false; 
-    rect1.drag(function(dx, dy, x, y, e) { var sv = (brotatemode ? "r"+dx : "t"+dx+","+dy); console.log(sv); rect1.transform(sv); }, 
+    Drect1.drag(function(dx, dy, x, y, e) { var sv = (brotatemode ? "r"+dx : "t"+dx+","+dy); console.log(sv); rect1.transform(sv); }, 
          function(x, y, e)  { brotatemode = e.ctrlKey }, 
          function(e) { rect1.attr("path", Raphael.mapPath(rect1.attr("path"), rect1.matrix)); rect1.transform("t0,0") }); 
-    rect1.onDragOver(function(e) { console.log(e); }); 
-    pathselected = rect1; 
+    Drect1.onDragOver(function(e) { console.log(e); }); 
+    pathselected = Drect1; 
 }
+
 
 $(document).ready(setup);   // function to call only *after* page has finished loading
 
@@ -245,7 +266,7 @@ div#filearea .spnumcols span:hover { border-color:white }
 div#filearea .groupprocess { background:#ffc }
 div#filearea .groupprocess:hover { background:#ccf }
 div#filearea .groupprocess.selected { background:#ee0 }
-
+input#mmpixwidth { width:3em }
 
 </style>
 
@@ -261,7 +282,7 @@ div#filearea .groupprocess.selected { background:#ee0 }
     <input type="button" value="MOVE!" id="movecollide">
     <span id="scale">1</span><span id="scaledouble">*2</span>
     <input type="file" id="files" name="files[]" multiple />
-    <span id="pixscale">pix-scaleX(mm):<span id="pixscaleX"></span>  pix-scaleY(mm):<span id="pixscaleY"></span></span>
+    <span id="pixscale">pix-scale(mm):<input type="text" id="mmpixwidth" name="mmpixwidth" value="1"/></span>
     <span id="readingcancel">0/0</span>
 </div>
 <div style="border: thin black solid" id="paper1"></div>

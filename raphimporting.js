@@ -7,6 +7,12 @@ var SVGfileprocess = function(fname, fnum, fadivid)
     this.state = "constructed"; 
     this.bcancelIm = false; 
     this.dfprocessstatus = "div#"+this.fadivid+" .fprocessstatus"; 
+
+    // after importing:
+    // this.rlistb = [ ]; 
+    // this.spnumlist = [ ]; 
+    // this.spnummap = { }; 
+    // this.btunnelxtype
 }
 
 SVGfileprocess.prototype.WorkOutPixelScale = function() 
@@ -38,9 +44,9 @@ SVGfileprocess.prototype.WorkOutPixelScale = function()
         this.mmpixwidth = inkscapedefaultmmpix; 
         this.mmpixheight = inkscapedefaultmmpix; 
     }
-    
-    $("#pixscaleX").text(this.mmpixwidth.toFixed(3)); 
-    $("#pixscaleY").text(this.mmpixheight.toFixed(3)); 
+    console.log("pixscaleX "+this.mmpixwidth+"  pixscaleY "+this.mmpixheight); 
+    $("#mmpixwidth").val(this.mmpixwidth); 
+    $("#mmpixwidth").change(); 
 }
     
 SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
@@ -60,13 +66,16 @@ SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
     if ((stroke == "none") || (stroke === undefined)) {
         if (!cclass)
             return; // skip
-        else
+        else {
             stroke = fillcolour; 
+            if (stroke != "#dddddd") 
+                return; 
+        }
     }
     
     // convert all to extended classes with these strokes in?
     if (this.spnummap[strokesubset] === undefined) {
-        var strokecolour = (this.btunnelxtype ? Raphael.getColor(1.0) : stroke); 
+        var strokecolour = stroke; // (this.btunnelxtype ? Raphael.getColor(1.0) : stroke); 
         var spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour, fillcolour:fillcolour }; 
         if (this.btunnelxtype)
             spnumobj["subsetname"] = cc.attr("Dsubsetname"); 
@@ -194,7 +203,7 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     
     this.rlistb = [ ]; 
     this.spnumlist = [ ]; 
-    this.spnummap = { }; // maps into the above
+    this.spnummap = { }; // maps into the above from concatinations of subset and strokecolour
     this.btunnelxtype = false;  // till it gets set on loading
     
     // autorun the group process (should distinguish easy cases)
@@ -211,7 +220,7 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
             setTimeout(importSVGpathRR, outerthis.timeoutcyclems); 
         } else {
             outerthis.state = "doneimportsvgr"; 
-            if ($("div#"+this.fadivid+" .groupprocess").hasClass("selected"))
+            if ($("div#"+outerthis.fadivid+" .groupprocess").hasClass("selected"))
                 outerthis.processimportedSVG(); 
         }
     }
@@ -223,7 +232,8 @@ function ProcessToPathGroupingsTunnelX(rlistb, spnumlist)
     var subsetnamemaps = { }; 
     for (var i = 0; i < rlistb.length; i++) {
         var spnumobj = spnumlist[rlistb[i].spnum]; 
-        if (spnumobj.fillcolour !== undefined) {
+//        if (spnumobj.fillcolour !== undefined) {
+        if (spnumobj.fillcolour == "#dddddd") {
             var subsetname = spnumobj.subsetname; 
             if (subsetnamemaps[subsetname] === undefined) 
                 subsetnamemaps[subsetname] = [ ]; 

@@ -1,6 +1,51 @@
 
 PolySorting = {
 
+patheval: function(p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y, t) 
+{
+    var s = 1 - t; 
+    var s2 = s*s, s3 = s2*s; 
+    var t2 = t*t, t3 = t2*t; 
+    
+    var x = s3*p1x + s2*3*t*c1x + s*3*t2*c2x + t3*p2x; 
+    var y = s3*p1y + s2*3*t*c1y + s*3*t2*c2y + t3*p2y; 
+
+    var dx = 3*s2*(c1x - p1x) + 6*s*t*(c2x - c1x) + 3*t2*(p2x - c2x); 
+    var dy = 3*s2*(c1y - p1y) + 6*s*t*(c2y - c1y) + 3*t2*(p2y - c2y); 
+    var dleng = Math.sqrt(dx*dx + dy*dy)||1; 
+    return { x:x, y:y, tx:dx/dleng, ty:dy/dleng, t:t }; 
+}, 
+
+flattenpath: function(d, cosangdot) 
+{
+    var epsilont = 0.01; 
+    console.assert(d[0][0] == "M"); 
+    var p1x = d[0][1], p1y = d[0][2]; 
+    var res = [ [p1x, p1y] ]; 
+    for (var i = 1; i < d.length; i++) {
+        console.assert(d[i][0] == "C"); 
+        var c1x = d[i][1], c1y = d[i][2]; 
+        var c2x = d[i][3], c2y = d[i][4]; 
+        var p2x = d[i][5], p2y = d[i][6]; 
+        var pevalstack = [ this.patheval(p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y, 1.0),  
+                           this.patheval(p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y, 0.0) ]; 
+        while (pevalstack.length >= 2) {
+            var peval0 = pevalstack.pop(); 
+            var peval1 = pevalstack[pevalstack.length - 1]; 
+            var dottang = peval0.tx*peval1.tx + peval0.ty*peval1.ty; 
+            if ((dottang < cosangdot) && (peval1.t - peval0.t >= epsilont)) {
+                pevalstack.push(this.patheval(p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y, (peval0.t+peval1.t)/2)); 
+                pevalstack.push(peval0); 
+            } else {
+                res.push([peval1.x, peval1.y]); 
+            }
+        }
+        res.push([p2x, p2y]); 
+        p1x = p2x;  p1y = p2y;  
+    }
+    return res; 
+}, 
+
 FindPathOrientation: function(darea)
 {
     var iL = 0; 
@@ -49,7 +94,6 @@ FindPathOrientation: function(darea)
     var diamondB = vyB / (Math.abs(vyB) + vxB); 
     return diamondB <= diamondF; 
 },
-
 
 FindClosedPathSequencesD: function(dlist, closedist)
 {
