@@ -51,45 +51,47 @@ SVGfileprocess.prototype.WorkOutPixelScale = function()
     
 SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
 {
-    var cclass = cc.attr("class"); 
-    // see this.mclassstyle[cclass] for more data
-
     var dtrans = Raphael.mapPath(d, cmatrix); // Raphael.transformPath(d, raphtranslist.join("")); 
     if (dtrans.length <= 1)
-        return; // skip
-        
-    var fillcolour = (this.mclassstyle[cclass] !== undefined ? this.mclassstyle[cclass]["fill"] : undefined); 
-    if (fillcolour == "none")
-        fillcolour = undefined; 
-    
-    var strokesubset = (this.btunnelxtype ? stroke+":"+cc.attr("Dsubsetname")+":"+fillcolour : stroke); 
-    if ((stroke == "none") || (stroke === undefined)) {
-        if (!cclass)
-            return; // skip
-        else {
-            stroke = fillcolour; 
-            if (stroke != "#dddddd") 
-                return; 
-        }
+        return; 
+
+    var cclass; 
+    if (this.btunnelxtype) {
+        cclass = cc.attr("class"); 
+        if ((this.mclassstyle[cclass]["dlinestyle"] == "OSA") || (this.mclassstyle[cclass]["dlinestyle"] == "CCA"))
+            return; 
+    } else {
+        if ((stroke == "none") || (stroke === undefined)) 
+            return; 
+        cclass = stroke; 
     }
     
     // convert all to extended classes with these strokes in?
-    if (this.spnummap[strokesubset] === undefined) {
-        var strokecolour = stroke; // (this.btunnelxtype ? Raphael.getColor(1.0) : stroke); 
-        var spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour, fillcolour:fillcolour }; 
-        if (this.btunnelxtype)
-            spnumobj["subsetname"] = cc.attr("Dsubsetname"); 
-        this.spnummap[strokesubset] = spnumobj.spnum; 
+    if (this.spnummap[cclass] === undefined) {
+        var strokecolour = stroke; 
+        var fillcolour = null; 
+        var spnumobj, stitle; 
+        if (this.btunnelxtype) {
+            fillcolour = Raphael.getColor(1.0); 
+            spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour, fillcolour:fillcolour, subsetname:this.mclassstyle[cclass]["dsubsetname"], linestyle:this.mclassstyle[cclass]["dlinestyle"] }; 
+            stitle = spnumobj.subsetname+"-"+spnumobj.linestyle; 
+        } else {
+            spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour }; 
+            stitle = strokecolour; 
+        }
+        this.spnummap[cclass] = spnumobj.spnum; 
         this.spnumlist.push(spnumobj); 
-        $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+spnumobj.spnum+'" title="'+strokesubset+'">'+(fillcolour?'O':'X')+'</span>').css("background", strokecolour)); 
-        $('div#'+this.fadivid+' .spnumcols span.spnum'+this.spcount).click(function() {
-            if ($(this).hasClass("selected")) 
-                $(this).removeClass("selected"); 
-            else
-                $(this).addClass("selected"); 
-        });
+        if (!this.btunnelxtype || (spnumobj.linestyle == "Wall")) {
+            $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+spnumobj.spnum+'" title="'+stitle+'">'+('X')+'</span>').css("background", fillcolour||strokecolour)); 
+            $('div#'+this.fadivid+' .spnumcols span.spnum'+spnumobj.spnum).click(function() {
+                if ($(this).hasClass("selected")) 
+                    $(this).removeClass("selected"); 
+                else
+                    $(this).addClass("selected"); 
+            });
+        }
     }
-    var spnum = this.spnummap[strokesubset]; 
+    var spnum = this.spnummap[cclass]; 
     var spnumobj = this.spnumlist[spnum]; 
     var strokecolour = spnumobj.strokecolour; 
     
@@ -145,7 +147,7 @@ SVGfileprocess.prototype.importSVGpathR = function()
         console.log("skip pattern"); 
     } else if (tag == "clippath") {
         console.log("skip clippath"); // will deploy Raphael.pathIntersection(path1, path2) eventually
-        // <clipPath id="cp1"> <path d="M497.7 285.2 Z" Dsubsetname="osa111"/></clipPath>
+        // <clipPath id="cp1"> <path d="M497.7 285.2 Z"/></clipPath>
         // then clippath="url(#cp1)" in a path for a trimmed symbol type
     } else if ((tag == "polygon") || (tag == "polygline")) {
         var ppts = cc.attr("points").split(/\s+|,/);
@@ -165,7 +167,8 @@ SVGfileprocess.prototype.importSVGpathR = function()
         var x1 = x0 + parseFloat(cc.attr("width")); 
         var y1 = y0 + parseFloat(cc.attr("height")); 
         var d = "M"+x0+","+y0+"L"+x0+","+y1+" "+x1+","+y1+" "+x1+","+y0+"Z"; 
-        this.processSingleSVGpath(d, cmatrix, cstroke, cc); 
+        if (!this.btunnelxtype)
+            this.processSingleSVGpath(d, cmatrix, cstroke, cc); 
     } else if (tag == "path") {
         this.processSingleSVGpath(cc.attr("d"), cmatrix, cstroke, cc); 
     } else {
@@ -196,7 +199,10 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     this.tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{([^}]*)/gi, function(a, b, c) { 
         mclassstyle[b] = { }; 
         c.replace(/([^:;]*):([^:;]*)/gi, function(a1, b1, c1) { 
-            mclassstyle[b][b1.trim().toLowerCase()] = c1.trim(); 
+            var c11 = c1.trim(); 
+            if ((c11.length != 0) && (c11[0] == '"') && (c11[c11.length-1] == '"'))
+                c11 = c11.slice(1, -1); 
+            mclassstyle[b][b1.trim().toLowerCase()] = c11; 
         }); 
     }); 
     console.log(mclassstyle); 
@@ -232,8 +238,7 @@ function ProcessToPathGroupingsTunnelX(rlistb, spnumlist)
     var subsetnamemaps = { }; 
     for (var i = 0; i < rlistb.length; i++) {
         var spnumobj = spnumlist[rlistb[i].spnum]; 
-//        if (spnumobj.fillcolour !== undefined) {
-        if (spnumobj.fillcolour == "#dddddd") {
+        if (spnumobj.linestyle == "subsetarea") {
             var subsetname = spnumobj.subsetname; 
             if (subsetnamemaps[subsetname] === undefined) 
                 subsetnamemaps[subsetname] = [ ]; 
@@ -252,7 +257,7 @@ function ProcessToPathGroupingsTunnelX(rlistb, spnumlist)
     // engraving edge groups
     for (var i = 0; i < rlistb.length; i++) {
         var spnumobj = spnumlist[rlistb[i].spnum]; 
-        if (spnumobj.fillcolour === undefined) {
+        if (spnumobj.linestyle != "subsetarea") {
             var subsetname = spnumobj.subsetname; 
             if (subsetnamemaps[subsetname] !== undefined) 
                 subsetnamemaps[subsetname][subsetnamemaps[subsetname].length-1].push(i); 
@@ -354,50 +359,55 @@ SVGfileprocess.prototype.processimportedSVG = function()
     for (var i = 0; i < this.rlistb.length; i++) 
         dlist.push(this.rlistb[i].path.attrs.path); 
 
-// should save these into objects to be passed between documents
-    var rlistb = this.rlistb; 
-    $.each(pathgroupings, function(i, pathgrouping) {
+    var Lgrouppaths = [ ]; 
+    for (var k = 0; k < pathgroupings.length; k++) {
+        var pathgrouping = pathgroupings[k]; 
+        
         // form the area object
         var dgroup = [ ]; 
+        var fillcolour = (this.btunnelxtype ? this.spnumlist[this.rlistb[pathgrouping[0][0]/2|0].spnum].fillcolour : "#0f0"); 
         for (var j = 0; j < pathgrouping.length - 1; j++) {
             dgroup = dgroup.concat(PolySorting.JDgeoseq(pathgrouping[j], dlist)); 
         }
         var pgroup = paper1.path(dgroup); 
-        pgroup.attr({stroke:"white", fill:"#0f0", "fill-opacity":"10%"}); 
+        pgroup.attr({stroke:"white", fill:fillcolour, "fill-opacity":"10%"}); 
         
         // form the list of all paths belonging to this area object
         var lpaths = [ pgroup ]; 
         var engpaths = pathgrouping[pathgrouping.length - 1]; 
         for (var i = 0; i < engpaths.length; i++)
-            lpaths.push(rlistb[engpaths[i]].path); 
+            lpaths.push(this.rlistb[engpaths[i]].path); 
         for (var j = 0; j < pathgrouping.length - 1; j++) {
             for (var i = 0; i < pathgrouping[j].length; i++)
-                lpaths.push(rlistb[pathgrouping[j][i]/2|0].path); 
+                lpaths.push(this.rlistb[pathgrouping[j][i]/2|0].path); 
         }
-        
-        var brotatemode = false; 
-        var cx = 0, cy = 0; 
-        pgroup.drag(
-            function(dx, dy) { 
-                var tstr = (brotatemode ? "r"+(dx*0.5)+","+cx+","+cy : "t"+(dx*paper1scale)+","+(dy*paper1scale)); 
-                $.each(lpaths, function(i, path) { 
-                    path.transform(tstr); 
-                }); 
-            }, 
-            function(x, y, e)  { 
-                brotatemode = e.ctrlKey; 
-                pathselected = pgroup; 
-                var bbox = pgroup.getBBox(); 
-                cx = (bbox.x + bbox.x2)/2; 
-                cy = (bbox.y + bbox.y2)/2; 
-            }, 
-            function() { 
-                $.each(lpaths, function(i, path) { 
-                    path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); 
-                    path.transform("t0,0") 
-                }); 
-            }
-        ); 
-    }); 
+
+        // localize for drag function
+        (function(pgroup, lpaths) {
+            var brotatemode = false; 
+            var cx = 0, cy = 0; 
+            pgroup.drag(
+                function(dx, dy) { 
+                    var tstr = (brotatemode ? "r"+(dx*0.5)+","+cx+","+cy : "t"+(dx*paper1scale)+","+(dy*paper1scale)); 
+                    $.each(lpaths, function(i, path) { 
+                        path.transform(tstr); 
+                    }); 
+                }, 
+                function(x, y, e)  { 
+                    brotatemode = e.ctrlKey; 
+                    pathselected = pgroup; 
+                    var bbox = pgroup.getBBox(); 
+                    cx = (bbox.x + bbox.x2)/2; 
+                    cy = (bbox.y + bbox.y2)/2; 
+                }, 
+                function() { 
+                    $.each(lpaths, function(i, path) { 
+                        path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); 
+                        path.transform("t0,0") 
+                    }); 
+                }
+            ); 
+        })(pgroup, lpaths); 
+    }; 
 }
 
