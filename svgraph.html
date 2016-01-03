@@ -177,9 +177,10 @@ function importSVGfiles(files)
                 $(this).removeClass("selected"); 
             } else {
                 $(this).addClass("selected"); 
-console.log(svgprocess.state);                 
                 if (svgprocess.state.match(/doneimportsvgr|doneimportsvgrareas/))
                     svgprocess.processimportedSVG(); 
+                else if (svgprocess.state.match(/processimportsvgrareas/))
+                    svgprocess.DetailsLoadingProcessTunnelx(); 
             }
         }); 
         

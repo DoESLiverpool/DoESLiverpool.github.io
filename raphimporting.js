@@ -64,7 +64,7 @@ SVGfileprocess.prototype.processSingleSVGpathFinal = function(dtrans, bMsplits, 
             i1++; 
         // this is the place to separate out the paths by M positions
         var path = paper1.path(dtrans.slice(i0, i1)); 
-        path.attr({stroke:strokecolour, "stroke-width":2.0}); 
+        path.attr({stroke:strokecolour, "stroke-width":strokewidth}); 
         rlist.push(path); 
         this.rlistb.push({path:path, spnum:spnum, d:d, mi:mi, cmatrix:cmatrix}); 
         
@@ -176,8 +176,6 @@ SVGfileprocess.prototype.importSVGpathR = function()
 
 
 
-
-
 SVGfileprocess.prototype.spnummapGetCreate = function(cclass, mcs, strokecolour)
 {
     // convert all to extended classes with these strokes in?
@@ -210,7 +208,7 @@ SVGfileprocess.prototype.processSingleSVGpathTunnelx = function(d, stroke, cc)
     if (this.state == "importsvgrareas") {
         if (mcs.dlinestyle.match("subsetarea") == null)
             return; 
-    } else {
+    } else if (this.state == "detailsloading") {
         if (mcs.dlinestyle.match("OSA|CCA|subsetarea") != null)
             return; 
     }
@@ -264,10 +262,13 @@ function importSVGpathRR(lthis)
         setTimeout(importSVGpathRR, lthis.timeoutcyclems, lthis); 
     } else {
         lthis.state = "done"+lthis.state; // "importsvgrareas" : "importsvgr"
-        if ($("div#"+lthis.fadivid+" .groupprocess").hasClass("selected"))
+        if (lthis.state == "donedetailsloading")
+            lthis.processdetailSVGtunnelx(); 
+        else if (lthis.btunnelxtype || $("div#"+lthis.fadivid+" .groupprocess").hasClass("selected"))
             lthis.processimportedSVG(); 
     }
 }
+
 
 SVGfileprocess.prototype.InitiateLoadingProcess = function(txt) 
 {
@@ -308,6 +309,18 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     importSVGpathRR(this); 
 }
 
+SVGfileprocess.prototype.DetailsLoadingProcessTunnelx = function() 
+{
+    console.assert(this.btunnelxtype); 
+    this.state = "detailsloading"; 
+
+    this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix() };
+    this.pstack = [ ]; 
+    this.cstack = [ this.tsvg ]; 
+    importSVGpathRR(this); 
+}
+
+
 // this could still break into totally disconnected contours with islands that don't overlap
 // (but that's for later when we are even trimming the symbols)
 function ProcessToPathGroupingsTunnelX(rlistb, spnumlist)
@@ -318,7 +331,7 @@ function ProcessToPathGroupingsTunnelX(rlistb, spnumlist)
         if (spnumobj.linestyle == "subsetarea") {
             var subsetname = spnumobj.subsetname; 
             if (subsetnamemaps[subsetname] === undefined) 
-                subsetnamemaps[subsetname] = [ ]; 
+                subsetnamemaps[subsetname] = [ subsetname ]; 
             subsetnamemaps[subsetname].push([i*2+1]); 
         }
     }
@@ -388,7 +401,7 @@ function ProcessToPathGroupings(rlistb, closedist, spnumscp)
     
     $(this.dfprocessstatus).text("oriented islands"); 
     for (var j = 0; j < cboundislands.length; j++) {
-        var lres = [ ]; 
+        var lres = [ "cb"+j ]; 
         var cboundisland = cboundislands[j]; 
         for (var ci = 0; ci < cboundisland.length; ci++) {
             var i = cboundisland[ci]; 
@@ -414,6 +427,35 @@ function ProcessToPathGroupings(rlistb, closedist, spnumscp)
     return res; 
 }
 
+
+SVGfileprocess.prototype.processdetailSVGtunnelx = function()
+{
+    var subsetnamemapsI = { }; 
+    for (var i = 0; i < this.pathgroupings.length; i++) {
+        subsetnamemapsI[this.pathgroupings[i][0]] = i; 
+        console.assert(this.pathgroupings[i][this.pathgroupings[i].length-1].length == 0); 
+    }
+    
+    var rlistb = this.rlistb; 
+    var spnumlist = this.spnumlist; 
+    // engraving edge groups
+    for (var j = 0; j < rlistb.length; j++) {
+        var spnumobj = spnumlist[rlistb[j].spnum]; 
+        if (spnumobj.linestyle != "subsetarea") {
+            var subsetname = spnumobj.subsetname; 
+            var i = subsetnamemapsI[subsetname]; 
+            if (i !== undefined) {
+                this.pathgroupings[i][this.pathgroupings[i].length-1].push(j); 
+                var pgroup = this.Lgrouppaths[i][0]; 
+                rlistb[j].path.transform(pgroup.matrix.toTransformString()); 
+                this.Lgrouppaths[i].push(rlistb[j].path); 
+            }
+        }
+    }
+    
+    this.state = "done"+this.state; 
+}
+
 SVGfileprocess.prototype.processimportedSVG = function()
 {
     // could this be converted into a callback
@@ -427,11 +469,10 @@ SVGfileprocess.prototype.processimportedSVG = function()
     console.log("hghghg", spnumscp); 
     
     // lists of indexes into rlistb specifying the linked boundaries and islands (*2+(bfore?1:0)), and engraving lines in the last list
-    var pathgroupings; 
     if (this.btunnelxtype)
-        pathgroupings = ProcessToPathGroupingsTunnelX(this.rlistb, this.spnumlist); 
+        this.pathgroupings = ProcessToPathGroupingsTunnelX(this.rlistb, this.spnumlist); 
     else
-        pathgroupings = ProcessToPathGroupings(this.rlistb, closedist, spnumscp); 
+        this.pathgroupings = ProcessToPathGroupings(this.rlistb, closedist, spnumscp); 
     
     this.state = "process"+this.state.slice(4); 
     $(this.dfprocessstatus).text("doneG"); 
@@ -441,14 +482,14 @@ SVGfileprocess.prototype.processimportedSVG = function()
     for (var i = 0; i < this.rlistb.length; i++) 
         dlist.push(this.rlistb[i].path.attrs.path); 
 
-    var Lgrouppaths = [ ]; 
-    for (var k = 0; k < pathgroupings.length; k++) {
-        var pathgrouping = pathgroupings[k]; 
+    this.Lgrouppaths = [ ]; 
+    for (var k = 0; k < this.pathgroupings.length; k++) {
+        var pathgrouping = this.pathgroupings[k]; 
         
         // form the area object
         var dgroup = [ ]; 
-        var fillcolour = (this.btunnelxtype ? this.spnumlist[this.rlistb[pathgrouping[0][0]/2|0].spnum].fillcolour : "#0f0"); 
-        for (var j = 0; j < pathgrouping.length - 1; j++) {
+        var fillcolour = (this.btunnelxtype ? this.spnumlist[this.rlistb[pathgrouping[1][0]/2|0].spnum].fillcolour : "#0f0"); 
+        for (var j = 1; j < pathgrouping.length - 1; j++) {
             dgroup = dgroup.concat(PolySorting.JDgeoseq(pathgrouping[j], dlist)); 
         }
         var pgroup = paper1.path(dgroup); 
@@ -456,13 +497,14 @@ SVGfileprocess.prototype.processimportedSVG = function()
         
         // form the list of all paths belonging to this area object
         var lpaths = [ pgroup ]; 
-        var engpaths = pathgrouping[pathgrouping.length - 1]; 
-        for (var i = 0; i < engpaths.length; i++)
-            lpaths.push(this.rlistb[engpaths[i]].path); 
         for (var j = 0; j < pathgrouping.length - 1; j++) {
             for (var i = 0; i < pathgrouping[j].length; i++)
                 lpaths.push(this.rlistb[pathgrouping[j][i]/2|0].path); 
         }
+        var engpaths = pathgrouping[pathgrouping.length - 1]; 
+        for (var i = 0; i < engpaths.length; i++)
+            lpaths.push(this.rlistb[engpaths[i]].path); 
+        this.Lgrouppaths.push(lpaths); 
 
         // localize for drag function
         (function(pgroup, lpaths) {
