@@ -175,7 +175,8 @@ function importSVGfiles(files)
                 $(this).removeClass("selected"); 
             } else {
                 $(this).addClass("selected"); 
-                if (svgprocess.state == "doneimportsvgr")
+console.log(svgprocess.state);                 
+                if (svgprocess.state.match(/doneimportsvgr|doneimportsvgrareas/))
                     svgprocess.processimportedSVG(); 
             }
         }); 
@@ -290,11 +291,12 @@ input#mmpixwidth { width:3em }
 <p>Code is <a href="https://github.com/goatchurchprime/doesliverpool.github.io/">here</a></p>
 
 <p>Work to do:
+*load the subsetareas separately and be able to pass over tsvg again to get the details
+*remove Raphael.mapPath at end of transform case (practice on scratch object first, then do the mappath on output)
 *remove jigsawareaoffset code from tunnelx java
-*build symbol trimming tech of clippaths
+*build symbol trimming tech of clippaths, possibly in a second pass over the tsvg object
 *drop-down of the sizes of stock (ply) which gets plotted in brown as the area, and material (which generates the lookup for the feeds and speeds)
 *select stock shape and type of material which is always underneath (allow for multiple sheets)
-*avoid crashing on big files by using settimeout technology
 *batch up each object into json of [original svgpaths,transforms,sequences,islands,colours,scaletomm,boundingbox,filename,author], 
 *be able to draw in minimal tiles off side of stock, post and recover from database file
 *layouts are saved as json objects and reimported, merged, etc.

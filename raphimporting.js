@@ -17,6 +17,11 @@ var SVGfileprocess = function(fname, fnum, fadivid)
 
 SVGfileprocess.prototype.WorkOutPixelScale = function() 
 {
+    var svgtitletext = this.tsvg.find("title").text(); 
+    this.btunnelxtype = (svgtitletext.match(/TunnelX/) != null); 
+    if (this.btunnelxtype) 
+        console.log("Detected TunnelX type"); 
+
     var sheight = this.tsvg.attr("height"); 
     var swidth = this.tsvg.attr("width"); 
     var viewBox = []; // (seemingly unable to lift the viewBox as an attribute)
@@ -48,6 +53,25 @@ SVGfileprocess.prototype.WorkOutPixelScale = function()
     $("#mmpixwidth").val(this.mmpixwidth); 
     $("#mmpixwidth").change(); 
 }
+
+SVGfileprocess.prototype.processSingleSVGpathFinal = function(dtrans, bMsplits, d, spnum, strokecolour, strokewidth, cmatrix)
+{
+    var i0 = 0; 
+    var mi = 0; 
+    while (i0 < dtrans.length) {
+        var i1 = i0 + 1; 
+        while ((i1 < dtrans.length) && (dtrans[i1][0] != "M"))
+            i1++; 
+        // this is the place to separate out the paths by M positions
+        var path = paper1.path(dtrans.slice(i0, i1)); 
+        path.attr({stroke:strokecolour, "stroke-width":2.0}); 
+        rlist.push(path); 
+        this.rlistb.push({path:path, spnum:spnum, d:d, mi:mi, cmatrix:cmatrix}); 
+        
+        i0 = i1; 
+        mi++; 
+    }
+}
     
 SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
 {
@@ -69,19 +93,12 @@ SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
     // convert all to extended classes with these strokes in?
     if (this.spnummap[cclass] === undefined) {
         var strokecolour = stroke; 
-        var fillcolour = null; 
-        var spnumobj, stitle; 
-        if (this.btunnelxtype) {
-            fillcolour = Raphael.getColor(1.0); 
-            spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour, fillcolour:fillcolour, subsetname:this.mclassstyle[cclass]["dsubsetname"], linestyle:this.mclassstyle[cclass]["dlinestyle"] }; 
-            stitle = spnumobj.subsetname+"-"+spnumobj.linestyle; 
-        } else {
-            spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour }; 
-            stitle = strokecolour; 
-        }
+        var fillcolour = Raphael.getColor(1.0); 
+        var spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour, fillcolour:fillcolour, subsetname:this.mclassstyle[cclass]["dsubsetname"], linestyle:this.mclassstyle[cclass]["dlinestyle"] }; 
+        var stitle = spnumobj.subsetname+"-"+spnumobj.linestyle; 
         this.spnummap[cclass] = spnumobj.spnum; 
         this.spnumlist.push(spnumobj); 
-        if (!this.btunnelxtype || (spnumobj.linestyle == "Wall")) {
+        if (true) {
             $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+spnumobj.spnum+'" title="'+stitle+'">'+('X')+'</span>').css("background", fillcolour||strokecolour)); 
             $('div#'+this.fadivid+' .spnumcols span.spnum'+spnumobj.spnum).click(function() {
                 if ($(this).hasClass("selected")) 
@@ -94,23 +111,9 @@ SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
     var spnum = this.spnummap[cclass]; 
     var spnumobj = this.spnumlist[spnum]; 
     var strokecolour = spnumobj.strokecolour; 
-    
-    var i0 = 0; 
-    var mi = 0; 
-    while (i0 < dtrans.length) {
-        var i1 = i0 + 1; 
-        while ((i1 < dtrans.length) && (dtrans[i1][0] != "M"))
-            i1++; 
-        // this is the place to separate out the paths by M positions
-        var path = paper1.path(dtrans.slice(i0, i1)); 
-        path.attr({stroke:strokecolour, "stroke-width":2.0}); 
-        rlist.push(path); 
-        this.rlistb.push({path:path, spnum:spnum, d:d, mi:mi, cmatrix:cmatrix}); 
-        
-        i0 = i1; 
-        mi++; 
-    }
+    this.processSingleSVGpathFinal(dtrans, true, d, spnum, strokecolour, 2.0, cmatrix); 
 }
+
 
 SVGfileprocess.prototype.importSVGpathR = function() 
 {
@@ -139,11 +142,7 @@ SVGfileprocess.prototype.importSVGpathR = function()
         cstroke = strokelist[strokelist.length - 1]; 
     }
 
-    if (tag == "title") {
-        this.btunnelxtype = (cc.text().match(/TunnelX/) != null); 
-        if (this.btunnelxtype) 
-            console.log("Detected TunnelX type"); 
-    } else if (tag == "pattern") {
+    if (tag == "pattern") {
         console.log("skip pattern"); 
     } else if (tag == "clippath") {
         console.log("skip clippath"); // will deploy Raphael.pathIntersection(path1, path2) eventually
@@ -182,18 +181,109 @@ SVGfileprocess.prototype.importSVGpathR = function()
     return true; 
 }
 
+
+
+
+
+SVGfileprocess.prototype.spnummapGetCreate = function(cclass, mcs, strokecolour)
+{
+    // convert all to extended classes with these strokes in?
+    if (this.spnummap[cclass] === undefined) {
+        var fillcolour = Raphael.getColor(1.0); 
+        var spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour, fillcolour:fillcolour, subsetname:mcs.dsubsetname, linestyle:mcs.dlinestyle }; 
+        var stitle = spnumobj.subsetname+"-"+spnumobj.linestyle; 
+        this.spnummap[cclass] = spnumobj.spnum; 
+        this.spnumlist.push(spnumobj); 
+        if (spnumobj.linestyle == "Wall") {
+            $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+spnumobj.spnum+'" title="'+stitle+'">'+('X')+'</span>').css("background", fillcolour||strokecolour)); 
+            $('div#'+this.fadivid+' .spnumcols span.spnum'+spnumobj.spnum).click(function() {
+                if ($(this).hasClass("selected")) 
+                    $(this).removeClass("selected"); 
+                else
+                    $(this).addClass("selected"); 
+            });
+        }
+    }
+}
+
+SVGfileprocess.prototype.processSingleSVGpathTunnelx = function(d, stroke, cc)
+{
+    var dtrans = Raphael.path2curve(d);
+    var cclass = cc.attr("class"); 
+    var mcs = this.mclassstyle[cclass]; 
+    var dlinestyle = mcs.dlinestyle; 
+    this.spnummapGetCreate(cclass, mcs, stroke); 
+    
+    if (this.state == "importsvgrareas") {
+        if (mcs.dlinestyle.match("subsetarea") == null)
+            return; 
+    } else {
+        if (mcs.dlinestyle.match("OSA|CCA|subsetarea") != null)
+            return; 
+    }
+    
+    // convert all to extended classes with these strokes in?
+    var spnum = this.spnummap[cclass]; 
+    var spnumobj = this.spnumlist[spnum]; 
+    var strokecolour = spnumobj.strokecolour; 
+    var bMsplits = (mcs.dlinestyle.match(/symb/) != null); 
+    this.processSingleSVGpathFinal(dtrans, bMsplits, d, spnum, strokecolour, 1.0, null); 
+}
+
+
+// simplified of importSVGpathR
+SVGfileprocess.prototype.importSVGpathRtunnelx = function() 
+{
+    while (this.cstack.length == this.pback.pos) 
+        this.pback = this.pstack.pop(); 
+    if (this.cstack.length == 0) 
+        return false; 
+    var cc = this.cstack.pop(); 
+    var tag = cc.prop("tagName").toLowerCase(); 
+    console.assert(cc.attr("transform") == null); 
+
+    if (tag == "clippath") {
+        console.log("skip clippath"); // will deploy Raphael.pathIntersection(path1, path2) eventually
+        // <clipPath id="cp1"> <path d="M497.7 285.2 Z"/></clipPath>
+        // then clippath="url(#cp1)" in a path for a trimmed symbol type
+    } else if (tag == "path") {
+        var cclass = cc.attr("class"); 
+        var cstroke = this.mclassstyle[cclass]["stroke"]; 
+        this.processSingleSVGpathTunnelx(cc.attr("d"), cstroke, cc); 
+    } else {
+        this.pstack.push(this.pback); 
+        this.pback = { pos:this.cstack.length }; 
+        var cs = cc.children(); 
+        for (var i = cs.length - 1; i >= 0; i--) 
+            this.cstack.push($(cs[i]));   // in reverse order for the stack
+    }
+    $(this.dfprocessstatus).text(this.rlistb.length+"/"+this.cstack.length); 
+    return true; 
+}
+
+// this operates the settimeout loop
+function importSVGpathRR(lthis)  
+{
+    if (lthis.bcancelIm) {
+        $(this.dfprocessstatus).text("CANCELLED"); 
+        lthis.state = "cancelled"+lthis.state; 
+    } else if (lthis.btunnelxtype ? lthis.importSVGpathRtunnelx() : lthis.importSVGpathR()) {
+        setTimeout(importSVGpathRR, lthis.timeoutcyclems, lthis); 
+    } else {
+        lthis.state = "done"+lthis.state; // "importsvgrareas" : "importsvgr"
+        if ($("div#"+lthis.fadivid+" .groupprocess").hasClass("selected"))
+            lthis.processimportedSVG(); 
+    }
+}
+
 SVGfileprocess.prototype.InitiateLoadingProcess = function(txt) 
 {
     // NB "stroke" actually means colour in SVG lingo
     this.state = "loading"; 
     this.txt = txt; 
     this.tsvg = $($(txt).children()[0]).parent(); // seems not to work directly as $(txt).find("svg")
-    this.WorkOutPixelScale();  
+    this.WorkOutPixelScale();  // sets the btunnelxtype
 
-    this.timeoutcyclems = 10; 
-    this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix() };
-    this.pstack = [ ]; 
-    this.cstack = [ this.tsvg ]; 
     this.mclassstyle = { }; 
     var mclassstyle = this.mclassstyle; 
     this.tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{([^}]*)/gi, function(a, b, c) { 
@@ -206,33 +296,27 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
         }); 
     }); 
     console.log(mclassstyle); 
-    
-    this.rlistb = [ ]; 
-    this.spnumlist = [ ]; 
-    this.spnummap = { }; // maps into the above from concatinations of subset and strokecolour
-    this.btunnelxtype = false;  // till it gets set on loading
-    
+
     // autorun the group process (should distinguish easy cases)
     if (txt.length < 10000)
         $("div#"+this.fadivid+" .groupprocess").addClass("selected"); 
+
+    this.rlistb = [ ]; 
+    this.spnumlist = [ ]; 
+    this.spnummap = { }; // maps into the above from concatinations of subset and strokecolour
+
+    // these control the loop importSVGpathRR runs within
+    this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix() };
+    this.pstack = [ ]; 
+    this.cstack = [ this.tsvg ]; 
     
-    this.state = "importsvgr"; 
-    var outerthis = this; 
-    function importSVGpathRR() {
-        if (outerthis.bcancelIm) {
-            $(this.dfprocessstatus).text("CANCELLED"); 
-            outerthis.state = "cancelledimportsvgr"; 
-        } else if (outerthis.importSVGpathR()) {
-            setTimeout(importSVGpathRR, outerthis.timeoutcyclems); 
-        } else {
-            outerthis.state = "doneimportsvgr"; 
-            if ($("div#"+outerthis.fadivid+" .groupprocess").hasClass("selected"))
-                outerthis.processimportedSVG(); 
-        }
-    }
-    importSVGpathRR(); 
+    this.state = (this.btunnelxtype ? "importsvgrareas" : "importsvgr"); 
+    this.timeoutcyclems = 4; 
+    importSVGpathRR(this); 
 }
 
+// this could still break into totally disconnected contours with islands that don't overlap
+// (but that's for later when we are even trimming the symbols)
 function ProcessToPathGroupingsTunnelX(rlistb, spnumlist)
 {
     var subsetnamemaps = { }; 
@@ -350,8 +434,13 @@ SVGfileprocess.prototype.processimportedSVG = function()
     console.log("hghghg", spnumscp); 
     
     // lists of indexes into rlistb specifying the linked boundaries and islands (*2+(bfore?1:0)), and engraving lines in the last list
-    var pathgroupings = (this.btunnelxtype ? ProcessToPathGroupingsTunnelX(this.rlistb, this.spnumlist) : ProcessToPathGroupings(this.rlistb, closedist, spnumscp)); 
+    var pathgroupings; 
+    if (this.btunnelxtype)
+        pathgroupings = ProcessToPathGroupingsTunnelX(this.rlistb, this.spnumlist); 
+    else
+        pathgroupings = ProcessToPathGroupings(this.rlistb, closedist, spnumscp); 
     
+    this.state = "process"+this.state.slice(4); 
     $(this.dfprocessstatus).text("doneG"); 
 
     // rebuild this groupings directly from the above indexing sets
@@ -370,7 +459,7 @@ SVGfileprocess.prototype.processimportedSVG = function()
             dgroup = dgroup.concat(PolySorting.JDgeoseq(pathgrouping[j], dlist)); 
         }
         var pgroup = paper1.path(dgroup); 
-        pgroup.attr({stroke:"white", fill:fillcolour, "fill-opacity":"10%"}); 
+        pgroup.attr({stroke:(this.btunnelxtype ? "black" : "white"), fill:fillcolour, "fill-opacity":"10%"}); 
         
         // form the list of all paths belonging to this area object
         var lpaths = [ pgroup ]; 
