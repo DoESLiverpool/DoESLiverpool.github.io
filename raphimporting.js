@@ -206,9 +206,15 @@ SVGfileprocess.prototype.processSingleSVGpathTunnelx = function(d, stroke, cc)
     this.spnummapGetCreate(cclass, mcs, stroke); 
     
     if (this.state == "importsvgrareas") {
-        if (mcs.dlinestyle.match("subsetarea") == null)
+        if (mcs.dlinestyle === undefined) {
+            console.log(cclass); 
             return; 
+        } else if (mcs.dlinestyle.match("subsetarea") == null) {
+            return; 
+        }
     } else if (this.state == "detailsloading") {
+        if (mcs.dlinestyle == undefined) 
+            return; // this is due to a label arrow!
         if (mcs.dlinestyle.match("OSA|CCA|subsetarea") != null)
             return; 
     }
@@ -217,6 +223,8 @@ SVGfileprocess.prototype.processSingleSVGpathTunnelx = function(d, stroke, cc)
     var spnum = this.spnummap[cclass]; 
     var spnumobj = this.spnumlist[spnum]; 
     var strokecolour = spnumobj.strokecolour; 
+    if (this.state == "importsvgrareas") 
+        strokecolour = spnumobj.fillcolour; 
     var bMsplits = (mcs.dlinestyle.match(/symb/) != null); 
     this.processSingleSVGpathFinal(dtrans, bMsplits, d, spnum, strokecolour, 1.0, null); 
 }
