@@ -24,6 +24,7 @@ function exportSVG()
 var bcancelExIm = false; 
 var cosang = 5; 
 var cosangdot = Math.cos(cosang*Math.PI/180); 
+var TXlinestylespnum = { "subsetarea":0, "Wall":1, "EstW":1, "Detl":2, "symbDetl":2, "CeilB":2, "Pitc":2, "Cent":3, "symbFill":4 }; 
 function exportPLT()
 {
     var svgprocess = SVGprocesses[SVGprocesses.length - 1]; 
@@ -46,12 +47,19 @@ function exportPLT()
         // uncomment to plot the flattenpath for debug viewing
         //var Lfpts = [ ]; for (var Di = 0; Di < fpts.length; Di++); Lfpts.push(fpts[Di][0]+","+fpts[Di][1]); 
         //paper1.path("M"+Lfpts.join("L")).attr("stroke", "red");  
-        
-        var spnum = rlistb[i].spnum; 
-        lplt.push("SP"+spnum+";\n"); 
-        lplt.push("LT;\n"); 
-        for (var j = 0; j < fpts.length; j++) {
-            lplt.push((j == 0 ? "PU" : "PD")+(fpts[j][0]*fac).toFixed(3)+" "+(ytop-fpts[j][1]*fac).toFixed(3)+"\n"); 
+        var spnum = rlistb[i].spnum, spnumobj; 
+        if (svgprocess.btunnelxtype) {
+            spnumobj = svgprocess.spnumlist[spnum]; 
+            spnum = TXlinestylespnum[spnumobj.linestyle]; 
+        }
+        if (spnum !== undefined) {
+            lplt.push("SP"+spnum+";\n"); 
+            lplt.push("LT;\n"); 
+            for (var j = 0; j < fpts.length; j++) {
+                lplt.push((j == 0 ? "PU" : "PD")+(fpts[j][0]*fac).toFixed(3)+" "+(ytop-fpts[j][1]*fac).toFixed(3)+"\n"); 
+            }
+        } else if (spnumobj) {
+            console.log(TXlinestylespnum[spnumobj.linestyle]); 
         }
         if (bcancelExIm) {
             return; 
