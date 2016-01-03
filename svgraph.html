@@ -39,7 +39,9 @@ function exportPLT()
     $("#readingcancel").text("exportPLT"); 
     function exportPLTpathR() {
         var path = rlistb[i].path; 
-        var fpts = PolySorting.flattenpath(path.attr("path"), cosangdot) 
+        var d = path.attr("path"); 
+        var dtrans = Raphael.mapPath(d, path.matrix); 
+        var fpts = PolySorting.flattenpath(dtrans, cosangdot) 
         
         // uncomment to plot the flattenpath for debug viewing
         //var Lfpts = [ ]; for (var Di = 0; Di < fpts.length; Di++); Lfpts.push(fpts[Di][0]+","+fpts[Di][1]); 
@@ -240,9 +242,12 @@ function setup()
     
     // scratch object
     var brotatemode = false; 
-    Drect1.drag(function(dx, dy, x, y, e) { var sv = (brotatemode ? "r"+dx : "t"+dx+","+dy); console.log(sv); rect1.transform(sv); }, 
-         function(x, y, e)  { brotatemode = e.ctrlKey }, 
-         function(e) { rect1.attr("path", Raphael.mapPath(rect1.attr("path"), rect1.matrix)); rect1.transform("t0,0") }); 
+    var basematrix; 
+    var rotx, roty; 
+    Drect1.drag(
+         function(dx, dy, x, y, e) { var sv = (brotatemode ? "r"+dx+","+rotx+","+roty : "t"+dx+","+dy)+basematrix; console.log(sv); Drect1.transform(sv); }, 
+         function(x, y, e)         { brotatemode = e.ctrlKey; basematrix = Drect1.matrix.toTransformString(); var bbox = Drect1.getBBox(); rotx = (bbox.x+bbox.x2)/2; roty = (bbox.y+bbox.y2)/2; }, 
+         function(e)               { /*Drect1.attr("path", Raphael.mapPath(Drect1.attr("path"), Drect1.matrix)); Drect1.transform("t0,0")*/ }); 
     Drect1.onDragOver(function(e) { console.log(e); }); 
     pathselected = Drect1; 
 }

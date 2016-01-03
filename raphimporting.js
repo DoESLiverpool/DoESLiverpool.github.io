@@ -80,26 +80,19 @@ SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
         return; 
 
     var cclass; 
-    if (this.btunnelxtype) {
-        cclass = cc.attr("class"); 
-        if ((this.mclassstyle[cclass]["dlinestyle"] == "OSA") || (this.mclassstyle[cclass]["dlinestyle"] == "CCA"))
-            return; 
-    } else {
-        if ((stroke == "none") || (stroke === undefined)) 
-            return; 
-        cclass = stroke; 
-    }
+    if ((stroke == "none") || (stroke === undefined)) 
+        return; 
+    cclass = stroke; 
     
     // convert all to extended classes with these strokes in?
     if (this.spnummap[cclass] === undefined) {
         var strokecolour = stroke; 
-        var fillcolour = Raphael.getColor(1.0); 
-        var spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour, fillcolour:fillcolour, subsetname:this.mclassstyle[cclass]["dsubsetname"], linestyle:this.mclassstyle[cclass]["dlinestyle"] }; 
-        var stitle = spnumobj.subsetname+"-"+spnumobj.linestyle; 
+        var spnumobj = { spnum:this.spnumlist.length, strokecolour:strokecolour }; 
+        var stitle = strokecolour; 
         this.spnummap[cclass] = spnumobj.spnum; 
         this.spnumlist.push(spnumobj); 
         if (true) {
-            $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+spnumobj.spnum+'" title="'+stitle+'">'+('X')+'</span>').css("background", fillcolour||strokecolour)); 
+            $('div#'+this.fadivid+' .spnumcols').append($('<span class="spnum'+spnumobj.spnum+'" title="'+stitle+'">'+('X')+'</span>').css("background", strokecolour)); 
             $('div#'+this.fadivid+' .spnumcols span.spnum'+spnumobj.spnum).click(function() {
                 if ($(this).hasClass("selected")) 
                     $(this).removeClass("selected"); 
@@ -475,25 +468,27 @@ SVGfileprocess.prototype.processimportedSVG = function()
         (function(pgroup, lpaths) {
             var brotatemode = false; 
             var cx = 0, cy = 0; 
+            var basematrix; 
             pgroup.drag(
                 function(dx, dy) { 
-                    var tstr = (brotatemode ? "r"+(dx*0.5)+","+cx+","+cy : "t"+(dx*paper1scale)+","+(dy*paper1scale)); 
-                    $.each(lpaths, function(i, path) { 
-                        path.transform(tstr); 
-                    }); 
+                    var tstr = (brotatemode ? "r"+(dx*0.5)+","+cx+","+cy : "t"+(dx*paper1scale)+","+(dy*paper1scale))+basematrix; 
+                    for (var k = 0; k < lpaths.length; k++) {
+                        lpaths[k].transform(tstr); 
+                    }; 
                 }, 
                 function(x, y, e)  { 
                     brotatemode = e.ctrlKey; 
                     pathselected = pgroup; 
+                    basematrix = pgroup.matrix.toTransformString(); 
                     var bbox = pgroup.getBBox(); 
                     cx = (bbox.x + bbox.x2)/2; 
                     cy = (bbox.y + bbox.y2)/2; 
                 }, 
                 function() { 
-                    $.each(lpaths, function(i, path) { 
+                    /*$.each(lpaths, function(i, path) { 
                         path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); 
                         path.transform("t0,0") 
-                    }); 
+                    });*/ 
                 }
             ); 
         })(pgroup, lpaths); 
