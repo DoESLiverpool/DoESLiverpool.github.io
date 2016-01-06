@@ -505,15 +505,15 @@ SVGfileprocess.prototype.processimportedSVG = function()
         
         // form the list of all paths belonging to this area object
         var lpaths = [ pgroup ]; 
-        for (var j = 0; j < pathgrouping.length - 1; j++) {
-            for (var i = 0; i < pathgrouping[j].length; i++)
+        for (var j = 1; j < pathgrouping.length - 1; j++) {
+            for (var i = 0; i < pathgrouping[j].length; i++) {
                 lpaths.push(this.rlistb[pathgrouping[j][i]/2|0].path); 
+            }
         }
         var engpaths = pathgrouping[pathgrouping.length - 1]; 
         for (var i = 0; i < engpaths.length; i++)
             lpaths.push(this.rlistb[engpaths[i]].path); 
         this.Lgrouppaths.push(lpaths); 
-
         // localize for drag function
         (function(pgroup, lpaths) {
             var brotatemode = false; 

@@ -105,19 +105,24 @@ var opts;
 var collidestepout = 10, collidestepover = 10; 
 var ylo, yhi; 
 var perprods; 
+var Lgrouppath = []; 
 function CollideBinary() 
 {
     // paper1.getElementsByPoint(x, y); 
     var ymid = (ylo + yhi)/2; 
     if (TestCollision(0, ymid)) {
         ylo = ymid; 
-        pathselected.transform("t0,"+ylo); 
+
+        var basematrix = pathselected.matrix.toTransformString(); 
+        var tstr = "t0,"+ylo+basematrix; 
+        for (var k = 0; k < Lgrouppath.length; k++) {
+            Lgrouppath[k].transform(tstr); 
+        }; 
+
     } else {
         yhi = ymid; 
     }
     if (yhi - ylo <= collidestepout + 1) {
-        pathselected.attr("path", Raphael.mapPath(pathselected.attr("path"), pathselected.matrix)); 
-        pathselected.transform("t0,0"); 
         perprods.remove(); 
     } else {
         setTimeout(CollideBinary, 5); 
@@ -137,17 +142,18 @@ function CollideBinary()
 function MoveCollide()
 {
     path = pathselected; 
-    var pl = path.getTotalLength(); 
+    var dtrans = Raphael.mapPath(path.attr("path"), path.matrix); 
+    var pl = Raphael.getTotalLength(dtrans); 
     console.log(pl); 
     var ds = [ ]; 
     opts = [ ]; 
     for (var i = 0; i < pl; i += collidestepover) {
-        var pal = path.getPointAtLength(i); 
+        var pal = Raphael.getPointAtLength(dtrans, i); 
         var angnorm = Raphael.rad(pal.alpha+90); 
         var sa = Math.sin(angnorm); 
         var ca = Math.cos(angnorm); 
         var d = collidestepout; 
-        if (path.isPointInside(pal.x+ca*d, pal.y+sa*d)) { d = -d }; 
+        if (Raphael.isPointInsidePath(dtrans, pal.x+ca*d, pal.y+sa*d)) { d = -d }; 
         ds.push("M", pal.x, ",", pal.y, "l", ca*d, ",", sa*d); 
         opts.push([pal.x+ca*d, pal.y+sa*d]); 
     }
@@ -155,9 +161,15 @@ function MoveCollide()
     perprods = paper1.path(ds.join("")); 
     ylo = 0; 
     yhi = 400; 
+    
+    Lgrouppath = null; 
+    var Lgrouppaths = SVGprocesses[SVGprocesses.length-1].Lgrouppaths; 
+    for (var k = 0; k < Lgrouppaths.length; k++) {
+        if (Lgrouppaths[k][0] == pathselected)
+            Lgrouppath = Lgrouppaths[k]; 
+    }
     setTimeout(CollideBinary, 5); 
 }
-
 
 
 
@@ -245,6 +257,7 @@ function setup()
     
     // setup the raphael paper and bits
     paper1 = Raphael("paper1", 1300, 800);
+// text!
     Drect1 = paper1.path("M20,30 L100,122 L40, 100 Z").attr({fill: "orange"});
     rect2 = paper1.path("M220,30 L300,122 L290, 100 Z").attr({fill: "blue"});
     var data = $("#paper1 svg").attr("id", "svg1"); 
