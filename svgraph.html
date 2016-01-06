@@ -181,6 +181,10 @@ function importSVGfiles(files)
             alert(f.name+" not SVG file: "+f.type); 
             return;
         }
+        if (Drect1 != null) {
+            Drect1.remove(); 
+            Drect1 = null; 
+        }
         var fnum = filenamelist.length; 
         filenamelist.push(f.name); 
         var fadivid = 'fa'+fnum; 
@@ -257,9 +261,10 @@ function setup()
     
     // setup the raphael paper and bits
     paper1 = Raphael("paper1", 1300, 800);
-// text!
-    Drect1 = paper1.path("M20,30 L100,122 L40, 100 Z").attr({fill: "orange"});
-    rect2 = paper1.path("M220,30 L300,122 L290, 100 Z").attr({fill: "blue"});
+    //Drect1 = paper1.path("M20,30 L100,122 L40, 100 Z").attr({fill: "orange"});
+    Drect1 = paper1.text(200, 60, "Drop SVG here").attr({fill: "orange"}).transform("s3").attr("fill-opacity", 0.3); 
+    
+    //rect2 = paper1.path("M220,30 L300,122 L290, 100 Z").attr({fill: "blue"});
     var data = $("#paper1 svg").attr("id", "svg1"); 
     
     // scratch object
