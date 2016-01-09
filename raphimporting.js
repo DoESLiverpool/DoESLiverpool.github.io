@@ -31,23 +31,16 @@ SVGfileprocess.prototype.WorkOutPixelScale = function()
     }); 
 
     console.log("facts:" + sheight+"  "+swidth + "  "+viewBox); 
-    var mmheight, mmwidth; 
-    if (sheight != undefined) {
-        console.assert(sheight.match(/.*?(mm|in)$/g)); 
-        mmheight = parseFloat(sheight) * (sheight[sheight.length-1] == 'n' ? 25.4 : 1); 
-    }
-    if (swidth != undefined) {
-        console.assert(swidth.match(/.*?(mm|in)$/g)); 
-        mmwidth = parseFloat(swidth) * (swidth[swidth.length-1] == 'n' ? 25.4 : 1); 
-    }
-    
     var inkscapedefaultmmpix = 90/25.4; 
-    if (viewBox.length != 0) {
+    this.mmpixwidth = inkscapedefaultmmpix; 
+    this.mmpixheight = inkscapedefaultmmpix; 
+    if ((viewBox.length != 0) && (sheight != undefined) && (swidth != undefined)) {
+        console.assert(sheight.match(/.*?(mm|in)$/g)); 
+        var mmheight = parseFloat(sheight) * (sheight[sheight.length-1] == 'n' ? 25.4 : 1); 
+        console.assert(swidth.match(/.*?(mm|in)$/g)); 
+        var mmwidth = parseFloat(swidth) * (swidth[swidth.length-1] == 'n' ? 25.4 : 1); 
         this.mmpixwidth = viewBox[2]/mmwidth; 
         this.mmpixheight = viewBox[3]/mmheight; 
-    } else {
-        this.mmpixwidth = inkscapedefaultmmpix; 
-        this.mmpixheight = inkscapedefaultmmpix; 
     }
     console.log("pixscaleX "+this.mmpixwidth+"  pixscaleY "+this.mmpixheight); 
     $("#mmpixwidth").val(this.mmpixwidth); 
@@ -152,6 +145,13 @@ SVGfileprocess.prototype.importSVGpathR = function()
         var cy = parseFloat(cc.attr("cy")); 
         var r = parseFloat(cc.cattr("r")); 
         var d = "M"+(cx-r)+","+cy+"A"+r+","+r+",0,0,1,"+cx+","+(cy-r)+"A"+r+","+r+",0,1,1,"+(cx-r)+","+cy; 
+        this.processSingleSVGpath(d, cmatrix, cstroke, cc); 
+    } else if (tag == "line") {
+        var x1 = parseFloat(cc.attr("x1"));
+        var y1 = parseFloat(cc.attr("y1")); 
+        var x2 = parseFloat(cc.attr("x2"));
+        var y2 = parseFloat(cc.attr("y2")); 
+        var d = "M"+x1+","+y1+"L"+x2+","+y2; 
         this.processSingleSVGpath(d, cmatrix, cstroke, cc); 
     } else if (tag == "rect") {
         var x0 = parseFloat(cc.attr("x"));
