@@ -30,18 +30,22 @@ SVGfileprocess.prototype.WorkOutPixelScale = function()
             viewBox.push(parseFloat(x), parseFloat(y), parseFloat(w), parseFloat(h)); 
     }); 
 
-    console.log("facts:" + sheight+"  "+swidth + "  "+viewBox); 
+    console.log("facts:" + swidth +"  " + sheight + "  "+viewBox); 
     var inkscapedefaultmmpix = 90/25.4; 
-    this.mmpixwidth = inkscapedefaultmmpix; 
-    this.mmpixheight = inkscapedefaultmmpix; 
+    this.fmmpixwidth = inkscapedefaultmmpix; 
+    this.fmmpixheight = inkscapedefaultmmpix; 
     if ((viewBox.length != 0) && (sheight != undefined) && (swidth != undefined)) {
         console.assert(sheight.match(/.*?(mm|in)$/g)); 
-        var mmheight = parseFloat(sheight) * (sheight[sheight.length-1] == 'n' ? 25.4 : 1); 
+        var fmmheight = parseFloat(sheight) * (sheight[sheight.length-1] == 'n' ? 25.4 : 1); 
         console.assert(swidth.match(/.*?(mm|in)$/g)); 
-        var mmwidth = parseFloat(swidth) * (swidth[swidth.length-1] == 'n' ? 25.4 : 1); 
-        this.mmpixwidth = viewBox[2]/mmwidth; 
-        this.mmpixheight = viewBox[3]/mmheight; 
+        var fmmwidth = parseFloat(swidth) * (swidth[swidth.length-1] == 'n' ? 25.4 : 1); 
+        this.fmmpixwidth = viewBox[2]/fmmwidth; 
+        this.fmmpixheight = viewBox[3]/fmmheight; 
     }
+    // force all to be same scale
+    this.fsca = inkscapedefaultmmpix/this.fmmpixwidth; 
+    this.mmpixwidth = inkscapedefaultmmpix
+    
     console.log("pixscaleX "+this.mmpixwidth+"  pixscaleY "+this.mmpixheight); 
     $("#mmpixwidth").val(this.mmpixwidth); 
     $("#mmpixwidth").change(); 
@@ -117,17 +121,29 @@ SVGfileprocess.prototype.importSVGpathR = function()
         raphtranslist.push(cc.attr("transform").replace(/([mtrs])\w+\s*\(([^\)]*)\)/gi, function(a, b, c) { return b.toLowerCase()+c+(b.match(/s/i) ? ",0,0" : ""); } )); 
         cmatrix = paper1.path().transform(raphtranslist.join("")).matrix; 
     }
-
     var strokelist = this.pback.strokelist; 
+
+    // decode case where multiple classes in same field
     var cclass = cc.attr("class"); 
-    var cstroke = cc.attr("stroke") || cc.css("stroke") || (this.mclassstyle[cclass] && this.mclassstyle[cclass]["stroke"]); 
+    var cstroke = cc.attr("stroke") || cc.css("stroke"); 
+    if (!cstroke && cclass) {
+        var lcclasss = cclass.split(" "); 
+        for (var k = 0; k < lcclasss.length; k++) { 
+            var lcclass = lcclasss[k]; 
+            if (lcclass) {
+                var lstroke = this.mclassstyle[lcclass] && this.mclassstyle[lcclass]["stroke"]; 
+                var lfill = this.mclassstyle[lcclass] && this.mclassstyle[lcclass]["fill"]; 
+                cstroke = lstroke || cstroke || lfill;  // prioritized getting colour from somewhere
+            }
+        }
+    }
+    
     if (cstroke) {
         strokelist = strokelist.slice(); 
         strokelist.push(cstroke); 
     } else {
         cstroke = strokelist[strokelist.length - 1]; 
     }
-
     if (tag == "pattern") {
         console.log("skip pattern"); 
     } else if (tag == "clippath") {
@@ -143,7 +159,7 @@ SVGfileprocess.prototype.importSVGpathR = function()
     } else if (tag == "circle") {
         var cx = parseFloat(cc.attr("cx"));
         var cy = parseFloat(cc.attr("cy")); 
-        var r = parseFloat(cc.cattr("r")); 
+        var r = parseFloat(cc.attr("r")); 
         var d = "M"+(cx-r)+","+cy+"A"+r+","+r+",0,0,1,"+cx+","+(cy-r)+"A"+r+","+r+",0,1,1,"+(cx-r)+","+cy; 
         this.processSingleSVGpath(d, cmatrix, cstroke, cc); 
     } else if (tag == "line") {
@@ -278,6 +294,7 @@ function importSVGpathRR(lthis)
 }
 
 
+
 SVGfileprocess.prototype.InitiateLoadingProcess = function(txt) 
 {
     // NB "stroke" actually means colour in SVG lingo
@@ -308,7 +325,7 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     this.spnummap = { }; // maps into the above from concatinations of subset and strokecolour
 
     // these control the loop importSVGpathRR runs within
-    this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix() };
+    this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix(this.fsca, 0, 0, this.fsca, 0, 0) };
     this.pstack = [ ]; 
     this.cstack = [ this.tsvg ]; 
     
@@ -322,7 +339,7 @@ SVGfileprocess.prototype.DetailsLoadingProcessTunnelx = function()
     console.assert(this.btunnelxtype); 
     this.state = "detailsloading"; 
 
-    this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix() };
+    this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix(this.fsca, 0, 0, this.fsca, 0, 0) };
     this.pstack = [ ]; 
     this.cstack = [ this.tsvg ]; 
     importSVGpathRR(this); 
