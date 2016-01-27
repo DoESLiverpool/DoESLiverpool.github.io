@@ -173,18 +173,22 @@ function MoveCollide()
     setTimeout(CollideBinary, 5); 
 }
 
+Dtranslats = null; 
+Dxjson = null; 
 function Nest1() 
 {
     var polymap = { }; 
     var board = [ ]; 
     var sequence = [ ]; 
+    var Ipolymap = { }; 
     for (var i = 0; i < SVGprocesses.length; i++) {
         var svgp = SVGprocesses[i]; 
         for (var j = 0; j < svgp.Lgrouppaths.length; j++) {
             var pth = svgp.Lgrouppaths[j][0].attr("path"); 
             var pgid = svgp.pathgroupings[j][0]; 
             polymap[pgid] = pth; 
-
+            Ipolymap[pgid] = [i, j]; 
+            
             if ((i == 0) && (j == 0)) {
                 board.push(pgid); 
             } else {
@@ -196,6 +200,19 @@ function Nest1()
     $.ajax({url:urlcgipipe, data:rdata, type:'POST', success:function(xjson) 
     {
         console.log("return JSON data", xjson); 
+        vjson = JSON.parse(xjson); 
+        var translats = vjson.translats; 
+        Dtranslats = translats; 
+        var kys = Object.keys(translats);
+        for (var k = 0; k < kys.length; k++) {
+            var pgid = kys[k]; 
+            var svgp = SVGprocesses[Ipolymap[pgid][0]]; 
+            var lpaths = svgp.Lgrouppaths[Ipolymap[pgid][1]]; 
+            var tstr = ("t"+(translats[pgid][0])+","+(translats[pgid][1])); 
+            for (var i = 0; i < lpaths.length; i++) {
+                lpaths[i].transform(tstr); 
+            }
+        }
     }}); 
 }
 
