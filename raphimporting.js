@@ -383,7 +383,7 @@ function ProcessToPathGroupingsTunnelX(rlistb, spnumlist)
     return res; 
 }
 
-function ProcessToPathGroupings(rlistb, closedist, spnumscp)
+function ProcessToPathGroupings(rlistb, closedist, spnumscp, fadivid)
 {
     // form the closed path sequences per spnum
     var jdseqs = [ ];  // indexes dlist
@@ -426,7 +426,7 @@ function ProcessToPathGroupings(rlistb, closedist, spnumscp)
     
     $(this.dfprocessstatus).text("oriented islands"); 
     for (var j = 0; j < cboundislands.length; j++) {
-        var lres = [ "cb"+j ]; 
+        var lres = [ fadivid+"cb"+j ]; 
         var cboundisland = cboundislands[j]; 
         for (var ci = 0; ci < cboundisland.length; ci++) {
             var i = cboundisland[ci]; 
@@ -497,7 +497,7 @@ SVGfileprocess.prototype.processimportedSVG = function()
     if (this.btunnelxtype)
         this.pathgroupings = ProcessToPathGroupingsTunnelX(this.rlistb, this.spnumlist); 
     else
-        this.pathgroupings = ProcessToPathGroupings(this.rlistb, closedist, spnumscp); 
+        this.pathgroupings = ProcessToPathGroupings(this.rlistb, closedist, spnumscp, this.fadivid); 
     
     this.state = "process"+this.state.slice(4); 
     $(this.dfprocessstatus).text("doneG"); 
@@ -510,6 +510,7 @@ SVGfileprocess.prototype.processimportedSVG = function()
     this.Lgrouppaths = [ ]; 
     for (var k = 0; k < this.pathgroupings.length; k++) {
         var pathgrouping = this.pathgroupings[k]; 
+        // [ "id", [outerpathlist], [innerpathlist1], [innerpathlist2], ..., [engpathlist(unorderedindexes)] ]
         
         // form the area object
         var dgroup = [ ]; 

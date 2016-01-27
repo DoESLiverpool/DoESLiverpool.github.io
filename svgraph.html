@@ -9,6 +9,8 @@
 <title>Experimental SVG lattice hinge generator</title>
 <script>
 
+var urlcgipipe = "http://localhost:9003/cgipipe"; 
+
 function exportSVG()
 {
     var xs = new XMLSerializer();
@@ -171,16 +173,49 @@ function MoveCollide()
     setTimeout(CollideBinary, 5); 
 }
 
+function Nest1() 
+{
+    var polymap = { }; 
+    var board = [ ]; 
+    var sequence = [ ]; 
+    for (var i = 0; i < SVGprocesses.length; i++) {
+        var svgp = SVGprocesses[i]; 
+        for (var j = 0; j < svgp.Lgrouppaths.length; j++) {
+            var pth = svgp.Lgrouppaths[j][0].attr("path"); 
+            var pgid = svgp.pathgroupings[j][0]; 
+            polymap[pgid] = pth; 
 
+            if ((i == 0) && (j == 0)) {
+                board.push(pgid); 
+            } else {
+                sequence.push(pgid); 
+            }
+        }
+    }
+    var rdata = { execname:"nestpolys1.py", stdindata:JSON.stringify({polymap:polymap, board:board, sequence:sequence}) }; 
+    $.ajax({url:urlcgipipe, data:rdata, type:'POST', success:function(xjson) 
+    {
+        console.log("return JSON data", xjson); 
+    }}); 
+}
+
+var Depstext; 
+var Df; 
 
 // handle EPS files using call out to server to execute pstoedit 
 function importSVGfiles(files)
 {
     $.each(files, function(i, f) { 
-        if (!f.type.match('image/svg\\+xml')) {
-            alert(f.name+" not SVG file: "+f.type); 
+        var beps = f.type.match('image/x-eps'); 
+        var bsvg = f.type.match('image/svg\\+xml'); 
+        var bdxf = f.type.match('image/vnd\\.dxf'); 
+        
+        if (!beps && !bsvg && !bdxf) {
+            alert(f.name+" not SVG, EPS or DXF file: "+f.type); 
             return;
         }
+        
+        
         if (Drect1 != null) {
             Drect1.remove(); 
             Drect1 = null; 
@@ -209,9 +244,25 @@ function importSVGfiles(files)
         }); 
         
         SVGprocesses.push(svgprocess); 
-        var reader = new FileReader();
-        reader.onload = (function(e) { svgprocess.InitiateLoadingProcess(reader.result); }); 
-        reader.readAsText(f); 
+Df = f;         
+        var reader = new FileReader(); 
+        if (bsvg) {
+            reader.onload = (function(e) { svgprocess.InitiateLoadingProcess(reader.result); }); 
+            reader.readAsText(f); 
+        } else {
+            reader.onload = (function(e) { 
+                console.log("Sending file length", reader.result.length); 
+                Depstext = reader.result.substr(0, 100); 
+                var urlcgipipe = "http://localhost:9003/cgipipe"; 
+                var rdata = { execname:(beps ? "eps2svg.py" : "dxf2svg.py"), stdindata:reader.result }; 
+                $.ajax({url:urlcgipipe, data:rdata, type:'POST', success:function(xsvg) 
+                {
+                    console.log("return SVG data", xsvg.length); 
+                    svgprocess.InitiateLoadingProcess(xsvg); 
+                }});             
+            }); 
+            reader.readAsBinaryString(f); 
+        }
     }); 
 }
 
@@ -223,6 +274,7 @@ function setup()
     $("#exportSVG").click(exportSVG); 
     $("#exportPLT").click(exportPLT); 
     $("#movecollide").click(MoveCollide); 
+    $("#nest1").click(Nest1); 
     $("#files").change(function(e) { importSVGfiles(e.target.files); });  
     $("#mmpixwidth").change(function() { 
         if (Rmmscalebar != null) {
@@ -313,6 +365,7 @@ input#mmpixwidth { width:3em }
     <input type="button" value="exportSVG" id="exportSVG"/>
     <input type="button" value="exportPLT" id="exportPLT"/>
     <input type="button" value="MOVE!" id="movecollide">
+    <input type="button" value="Nest1" id="nest1">
     <span id="scale">1</span><span id="scaledouble">*2</span>
     <input type="file" id="files" name="files[]" multiple />
     <span id="pixscale">pix-scale(mm):<input type="text" id="mmpixwidth" name="mmpixwidth" value="1"/></span>
