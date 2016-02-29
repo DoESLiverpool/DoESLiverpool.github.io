@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<script src="jquery-2.1.4.min.js"></script>    
+<script src="jquery-2.1.4.min.js"></script>
 <script type="text/javascript" src="raphael.js"></script>    
 <script type="text/javascript" src="raphpolygonsorting.js"></script>    
 <script type="text/javascript" src="raphimporting.js"></script>    
@@ -158,7 +158,10 @@ function requestmachinekitstats()
             mkstatus = "mkready"; 
         $("#machinekitstatus").text(mkstatus); 
         if ((toscasizerect == undefined) && machinekitstats.axis) {
-            toscasizerect = paper1.rect(15, 15, machinekitstats.axis[0]["max_position_limit"] - machinekitstats.axis[0]["min_position_limit"], machinekitstats.axis[1]["max_position_limit"] - machinekitstats.axis[1]["min_position_limit"]).attr({stroke:"grey", fill:"lightGrey"}).toBack(); 
+            var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
+            var mmwidth = machinekitstats.axis[0]["max_position_limit"] - machinekitstats.axis[0]["min_position_limit"]; 
+            var mmheight = machinekitstats.axis[1]["max_position_limit"] - machinekitstats.axis[1]["min_position_limit"]; 
+            toscasizerect = paper1.rect(15, 15, mmwidth*mmpixwidth, mmheight*mmpixwidth).attr({stroke:"grey", fill:"lightGrey"}).toBack(); 
         }
 
     }});             
@@ -183,6 +186,8 @@ function TestCollision(dx, dy)
 
 var paper1 = null; 
 var paper1scale = 1; 
+var paper1x0 = 100; 
+var paper1y0 = 0; 
 var filenamelist = [ ]; 
 var rlist = [ ]; 
 var SVGprocesses = [ ]; 
@@ -415,7 +420,7 @@ function setup()
     $("#scaledouble").click(function() { $("#scaledouble").text($("#scaledouble").text() == "*2" ? "/2" : "*2"); }); 
     $("#scale").click(function() { 
         paper1scale *= ($("#scaledouble").text() == "*2" ? 2 : 0.5); 
-        paper1.setViewBox(0, 0, paper1.width*paper1scale, paper1.height*paper1scale); 
+        paper1.setViewBox(paper1x0*paper1scale, paper1y0*paper1scale, paper1.width*paper1scale, paper1.height*paper1scale); 
         $("#scale").text(paper1scale); 
     }); 
     $("#scaledouble, #scale").mousedown(function(e) { e.preventDefault(); }); // stop selection on double-click
@@ -423,6 +428,28 @@ function setup()
     
     // setup the raphael paper and bits
     paper1 = Raphael("paper1", 1300, 800);
+    paper1.setViewBox(paper1x0*paper1scale, paper1y0*paper1scale, paper1.width*paper1scale, paper1.height*paper1scale); 
+    paper1.raphael.mousedown(function(e) { console.log(e); }); 
+    $(paper1.canvas).bind('mousewheel', function(e) {
+        var paperelement = document.getElementById("paper1");
+        var mx = e.clientX - paperelement.offsetLeft - 2; 
+        var my = e.clientY - paperelement.offsetTop - 2; 
+        console.log(e.originalEvent.deltaY, mx, my, event); 
+        var cx = (mx + paper1x0)*paper1scale; 
+        var cy = (my + paper1y0)*paper1scale; 
+        //paper1.rect(cx, cy, 5, 5); 
+        paper1scale = (e.originalEvent.deltaY < 0 ? paper1scale*1.5 : paper1scale/1.5); 
+        paper1x0 = cx/paper1scale - mx; 
+        paper1y0 = cy/paper1scale - my; 
+        paper1.setViewBox(paper1x0*paper1scale, paper1y0*paper1scale, paper1.width*paper1scale, paper1.height*paper1scale); 
+        e.stopPropagation(); e.preventDefault(); 
+        return false; 
+    });
+//    paper1.drag(
+//         function(dx, dy, x, y, e) { /*var sv = (brotatemode ? "r"+dx+","+rotx+","+roty : "t"+dx+","+dy)+basematrix; console.log(sv); Drect1.transform(sv);*/ }, 
+//         function(x, y, e)         { console.log("paper1", x, y); }, 
+//         function(e)               { /*Drect1.attr("path", Raphael.mapPath(Drect1.attr("path"), Drect1.matrix)); Drect1.transform("t0,0")*/ }); 
+
     //Drect1 = paper1.path("M20,30 L100,122 L40, 100 Z").attr({fill: "orange"});
     Drect1 = paper1.text(200, 60, "Drop SVG here").attr({fill: "orange"}).transform("s3").attr("fill-opacity", 0.3); 
     
