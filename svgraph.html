@@ -9,7 +9,6 @@
 <title>Experimental SVG lattice hinge generator</title>
 <script>
 
-var urlcgipipe = "http://localhost:9003/cgipipe"; 
 
 function exportSVG()
 {
@@ -78,6 +77,91 @@ function exportPLT()
         $("#readingcancel").text(i+"/"+rlist.length); 
     };
     exportPLTpathR(); 
+}
+
+function sendgcode()
+{
+    var svgprocess = SVGprocesses[SVGprocesses.length - 1]; 
+    var rlistb = svgprocess.rlistb; 
+    var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
+    
+    var lgcode = [ "G64P0.2", "G0Z5F20000\n" ]; 
+    var samplerateunit = 0.9; 
+    var fac = 1.0/mmpixwidth; 
+    var xtop = -300; 
+    var ytop = -300; 
+    var i = 0; 
+    bcancelExIm = false; 
+    $("#readingcancel").text("sendinggcode"); 
+    function exportGCODEpathR() {
+        var path = rlistb[i].path; 
+        var d = path.attr("path"); 
+        var dtrans = Raphael.mapPath(d, path.matrix); 
+        var fpts = PolySorting.flattenpath(dtrans, cosangdot) 
+        
+        // uncomment to plot the flattenpath for debug viewing
+        //var Lfpts = [ ]; for (var Di = 0; Di < fpts.length; Di++); Lfpts.push(fpts[Di][0]+","+fpts[Di][1]); 
+        //paper1.path("M"+Lfpts.join("L")).attr("stroke", "red");  
+        var spnum = rlistb[i].spnum, spnumobj; 
+        if (spnum !== undefined) {
+            for (var j = 0; j < fpts.length; j++) {
+                lgcode.push((j == 0 ? "G0Z5\nX" : "X")+(xtop+fpts[j][0]*fac).toFixed(3)+"Y"+(ytop-fpts[j][1]*fac).toFixed(3)+"\n"); 
+                if (j == 0)
+                    lgcode.push("G1Z0\n"); 
+            }
+        } else if (spnumobj) {
+            console.log(TXlinestylespnum[spnumobj.linestyle]); 
+        }
+        if (bcancelExIm) {
+            return; 
+        } else if (++i < rlistb.length) {
+            setTimeout(exportGCODEpathR, 1); 
+        } else {
+            lgcode.push("G0Z5\nM2\n"); 
+            var bautorun = false; 
+            var rdata = { execname:(bautorun ? "savengcrun.py" : "savengc.py"), stdindata:lgcode.join("") }; 
+            $.ajax({url:geturlcgipipe(), data:rdata, type:'POST', success:function(msg) 
+            {
+                console.log("return message:", msg); 
+            }});             
+        }
+        $("#readingcancel").text(i+"/"+rlist.length); 
+    };
+    exportGCODEpathR(); 
+}
+
+
+var machinekitstats = undefined; 
+var toscasizerect = undefined; 
+function requestmachinekitstats() 
+{
+    var stdindata = ""; 
+    var rdata = stdindata; 
+    $("#machinekitstatus").text("requesting..."); 
+    //$.ajax({url:geturlcgipipe()+'/reverse.py?a=b', data:rdata, type:'POST', success:function(msg) 
+    $.ajax({url:geturlcgipipe()+'/machinekitstatus.py', data:rdata, type:'POST', success:function(msg) 
+    {
+        machinekitstats = JSON.parse(msg); 
+        console.log(machinekitstats); 
+        var mkstatus = "fetched"; 
+        if (machinekitstats["response"] == "bad")
+            mkstatus = "not working"
+        else if (machinekitstats["estop"] != 0)
+            mkstatus = "estop";
+        else if (!machinekitstats["enabled"])
+            mkstatus = "disabled";
+        else if ((machinekitstats["homed"][0] == 0) || (machinekitstats["homed"][1] == 0) || (machinekitstats["homed"][2] == 0))
+            mkstatus = "not homed";
+        else if (machinekitstats["interp_state"] != machinekitstats.INTERP_IDLE)
+            mkstatus = "not idle";
+        else
+            mkstatus = "mkready"; 
+        $("#machinekitstatus").text(mkstatus); 
+        if ((toscasizerect == undefined) && machinekitstats.axis) {
+            toscasizerect = paper1.rect(15, 15, machinekitstats.axis[0]["max_position_limit"] - machinekitstats.axis[0]["min_position_limit"], machinekitstats.axis[1]["max_position_limit"] - machinekitstats.axis[1]["min_position_limit"]).attr({stroke:"grey", fill:"lightGrey"}).toBack(); 
+        }
+
+    }});             
 }
 
 function TestCollision(dx, dy) 
@@ -197,7 +281,7 @@ function Nest1()
         }
     }
     var rdata = { execname:"nestpolys1.py", stdindata:JSON.stringify({polymap:polymap, board:board, sequence:sequence}) }; 
-    $.ajax({url:urlcgipipe, data:rdata, type:'POST', success:function(xjson) 
+    $.ajax({url:geturlcgipipe(), data:rdata, type:'POST', success:function(xjson) 
     {
         console.log("return JSON data", xjson); 
         vjson = JSON.parse(xjson); 
@@ -218,6 +302,14 @@ function Nest1()
 
 var Depstext; 
 var Df; 
+
+function geturlcgipipe() 
+{
+    var cgiipnumber = $("#machinekitip").val().trim(); 
+    if (cgiipnumber == "")
+        cgiipnumber = "localhost"; 
+    return "http://"+cgiipnumber+":9003/cgipipe"; 
+}
 
 // handle EPS files using call out to server to execute pstoedit 
 function importSVGfiles(files)
@@ -270,9 +362,8 @@ Df = f;
             reader.onload = (function(e) { 
                 console.log("Sending file length", reader.result.length); 
                 Depstext = reader.result.substr(0, 100); 
-                var urlcgipipe = "http://localhost:9003/cgipipe"; 
                 var rdata = { execname:(beps ? "eps2svg.py" : "dxf2svg.py"), stdindata:reader.result }; 
-                $.ajax({url:urlcgipipe, data:rdata, type:'POST', success:function(xsvg) 
+                $.ajax({url:geturlcgipipe(), data:rdata, type:'POST', success:function(xsvg) 
                 {
                     console.log("return SVG data", xsvg.length); 
                     svgprocess.InitiateLoadingProcess(xsvg); 
@@ -304,6 +395,8 @@ function setup()
         Rmmscalebar = paper1.path("M10,10h"+(woodwidth*mmpixwidth)+"v5 M10,10v"+(woodheight*mmpixwidth)+"h5").attr("stroke", "#888"); 
     }); 
     
+    $("#sendgcode").click(sendgcode); 
+    $("#requestmachinekitstats").click(requestmachinekitstats); 
 
     $("#paper1").on('dragover', function(e) {
         e.stopPropagation(); e.preventDefault(); 
@@ -387,6 +480,12 @@ input#mmpixwidth { width:3em }
     <input type="file" id="files" name="files[]" multiple />
     <span id="pixscale">pix-scale(mm):<input type="text" id="mmpixwidth" name="mmpixwidth" value="1"/></span>
     <span id="readingcancel">0/0</span>
+</div>
+<div>
+    <span>Machinekit twisted IPnumber: <input type="text" id="machinekitip" name="machinekitip" value="192.168.0.130"/></span>
+    <input type="button" value="Send G-code" id="sendgcode"/>
+    <input type="button" value="MKstats" id="requestmachinekitstats"/>
+    <span id="machinekitstatus"></span>
 </div>
 <div style="border: thin black solid" id="paper1"></div>
   
