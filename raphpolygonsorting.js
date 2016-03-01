@@ -16,7 +16,7 @@ patheval: function(p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y, t)
     return { x:x, y:y, tx:dx/dleng, ty:dy/dleng, t:t }; 
 }, 
 
-flattenpath: function(d, cosangdot) 
+flattenpath: function(d, cosangdot, thinningtolerance) 
 {
     var epsilont = 0.01; 
     console.assert(d[0][0] == "M"); 
@@ -43,6 +43,48 @@ flattenpath: function(d, cosangdot)
         res.push([p2x, p2y]); 
         p1x = p2x;  p1y = p2y;  
     }
+    
+    var toli01 = function(pts, i0, i1) {
+        var p0 = pts[i0]; 
+        var p1 = pts[i1]; 
+        var vx = p1[0] - p0[0]; 
+        var vy = p1[1] - p0[1]; 
+        var vlen = Math.sqrt(vx*vx + vy*vy); 
+        var tol = 0.0; 
+        for (var j = i0+1; j < i1; j++) {
+            var p = pts[j]; 
+            var vpx = p[0] - p0[0]; 
+            var vpy = p[1] - p0[1]; 
+            var ltol; 
+            if (vlen != 0.0) {
+                ltol = Math.abs((vpx*vy - vpy*vx)/vlen); 
+            } else {
+                ltol = Math.sqrt(vpx*vpx + vpy*vpy); 
+            }
+            if (ltol > tol)
+                tol = ltol; 
+        }
+        return tol; 
+    }
+    
+    if (thinningtolerance != 0.0) {
+        console.log("thinning to pixel tolerance", thinningtolerance); 
+        var pts = res;
+        var i0 = 0; 
+        var res = [ pts[i0] ]; 
+        var i1 = 1; 
+        while (i1 < pts.length-1) {
+            if (toli01(pts, i0, i1+1) > thinningtolerance) {
+                res.push(pts[i1]); 
+                i0 = i1; 
+                i1++; 
+            } else {
+                i1++;
+            }
+        }
+        res.push(pts[i1]); 
+    }
+    
     return res; 
 }, 
 

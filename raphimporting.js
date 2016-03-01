@@ -1,8 +1,7 @@
 
-var SVGfileprocess = function(fname, fnum, fadivid) 
+var SVGfileprocess = function(fname, fadivid) 
 {
     this.fname = fname; 
-    this.fnum = fnum; 
     this.fadivid = fadivid; 
     this.state = "constructed"; 
     this.bcancelIm = false; 

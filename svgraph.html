@@ -28,7 +28,7 @@ var cosangdot = Math.cos(cosang*Math.PI/180);
 var TXlinestylespnum = { "subsetarea":0, "Wall":1, "EstW":1, "Detl":2, "symbDetl":2, "CeilB":2, "Pitc":2, "Cent":3, "symbFill":4 }; 
 function exportPLT()
 {
-    var svgprocess = SVGprocesses[SVGprocesses.length - 1]; 
+    var svgprocess = SVGprocesses[fadividlast]; 
     var rlistb = svgprocess.rlistb; 
     var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
     
@@ -43,7 +43,7 @@ function exportPLT()
         var path = rlistb[i].path; 
         var d = path.attr("path"); 
         var dtrans = Raphael.mapPath(d, path.matrix); 
-        var fpts = PolySorting.flattenpath(dtrans, cosangdot) 
+        var fpts = PolySorting.flattenpath(dtrans, cosangdot, 0.0) 
         
         // uncomment to plot the flattenpath for debug viewing
         //var Lfpts = [ ]; for (var Di = 0; Di < fpts.length; Di++); Lfpts.push(fpts[Di][0]+","+fpts[Di][1]); 
@@ -81,15 +81,16 @@ function exportPLT()
 
 function sendgcode()
 {
-    var svgprocess = SVGprocesses[SVGprocesses.length - 1]; 
+    var svgprocess = SVGprocesses[fadividlast]; 
     var rlistb = svgprocess.rlistb; 
     var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
     
     var lgcode = [ "G64P0.2", "G0Z5F20000\n" ]; 
     var samplerateunit = 0.9; 
     var fac = 1.0/mmpixwidth; 
-    var xtop = -300; 
-    var ytop = -300; 
+    var xtopmm = machinekitstats.xlo; 
+    var ytopmm = machinekitstats.yhi; 
+    var thinningtolerancemm = 1.1; 
     var i = 0; 
     bcancelExIm = false; 
     $("#readingcancel").text("sendinggcode"); 
@@ -97,7 +98,7 @@ function sendgcode()
         var path = rlistb[i].path; 
         var d = path.attr("path"); 
         var dtrans = Raphael.mapPath(d, path.matrix); 
-        var fpts = PolySorting.flattenpath(dtrans, cosangdot) 
+        var fpts = PolySorting.flattenpath(dtrans, cosangdot, thinningtolerancemm*fac) 
         
         // uncomment to plot the flattenpath for debug viewing
         //var Lfpts = [ ]; for (var Di = 0; Di < fpts.length; Di++); Lfpts.push(fpts[Di][0]+","+fpts[Di][1]); 
@@ -105,7 +106,7 @@ function sendgcode()
         var spnum = rlistb[i].spnum, spnumobj; 
         if (spnum !== undefined) {
             for (var j = 0; j < fpts.length; j++) {
-                lgcode.push((j == 0 ? "G0Z5\nX" : "X")+(xtop+fpts[j][0]*fac).toFixed(3)+"Y"+(ytop-fpts[j][1]*fac).toFixed(3)+"\n"); 
+                lgcode.push((j == 0 ? "G0Z5\nX" : "X") + (xtopmm+fpts[j][0]*fac).toFixed(3) + "Y" + (ytopmm-fpts[j][1]*fac).toFixed(3) + "\n"); 
                 if (j == 0)
                     lgcode.push("G1Z0\n"); 
             }
@@ -118,9 +119,8 @@ function sendgcode()
             setTimeout(exportGCODEpathR, 1); 
         } else {
             lgcode.push("G0Z5\nM2\n"); 
-            var bautorun = false; 
-            var rdata = { execname:(bautorun ? "savengcrun.py" : "savengc.py"), stdindata:lgcode.join("") }; 
-            $.ajax({url:geturlcgipipe(), data:rdata, type:'POST', success:function(msg) 
+            var rdata = lgcode.join(""); 
+            $.ajax({url:geturlcgipipe()+'/savengc.py?autorun='+($("#gcodeautorun").prop("checked") ? "yes" : "no"), data:rdata, type:'POST', success:function(msg) 
             {
                 console.log("return message:", msg); 
             }});             
@@ -159,8 +159,8 @@ function requestmachinekitstats()
         $("#machinekitstatus").text(mkstatus); 
         if ((toscasizerect == undefined) && machinekitstats.axis) {
             var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
-            var mmwidth = machinekitstats.axis[0]["max_position_limit"] - machinekitstats.axis[0]["min_position_limit"]; 
-            var mmheight = machinekitstats.axis[1]["max_position_limit"] - machinekitstats.axis[1]["min_position_limit"]; 
+            var mmwidth = machinekitstats.xhi - machinekitstats.xlo; 
+            var mmheight = machinekitstats.yhi - machinekitstats.ylo; 
             toscasizerect = paper1.rect(15, 15, mmwidth*mmpixwidth, mmheight*mmpixwidth).attr({stroke:"grey", fill:"lightGrey"}).toBack(); 
         }
 
@@ -186,11 +186,12 @@ function TestCollision(dx, dy)
 
 var paper1 = null; 
 var paper1scale = 1; 
-var paper1x0 = 100; 
+var paper1x0 = 0; 
 var paper1y0 = 0; 
-var filenamelist = [ ]; 
+var filenamelist = { }; 
 var rlist = [ ]; 
-var SVGprocesses = [ ]; 
+var SVGprocesses = { }; // indexed by fadivid
+var fadividlast = undefined; 
 var pathselected = null; 
 var opts; 
 var collidestepout = 10, collidestepover = 10; 
@@ -254,7 +255,7 @@ function MoveCollide()
     yhi = 400; 
     
     Lgrouppath = null; 
-    var Lgrouppaths = SVGprocesses[SVGprocesses.length-1].Lgrouppaths; 
+    var Lgrouppaths = SVGprocesses[fadividlast].Lgrouppaths; 
     for (var k = 0; k < Lgrouppaths.length; k++) {
         if (Lgrouppaths[k][0] == pathselected)
             Lgrouppath = Lgrouppaths[k]; 
@@ -270,13 +271,14 @@ function Nest1()
     var board = [ ]; 
     var sequence = [ ]; 
     var Ipolymap = { }; 
-    for (var i = 0; i < SVGprocesses.length; i++) {
-        var svgp = SVGprocesses[i]; 
+    //for (var i = 0; i < SVGprocesses.length; i++) {
+    Object.keys(a).forEach(function(key, i) {  // untested after the above change from list to object
+        var svgp = SVGprocesses[key]; 
         for (var j = 0; j < svgp.Lgrouppaths.length; j++) {
             var pth = svgp.Lgrouppaths[j][0].attr("path"); 
             var pgid = svgp.pathgroupings[j][0]; 
             polymap[pgid] = pth; 
-            Ipolymap[pgid] = [i, j]; 
+            Ipolymap[pgid] = [key, j]; 
             
             if ((i == 0) && (j == 0)) {
                 board.push(pgid); 
@@ -284,7 +286,7 @@ function Nest1()
                 sequence.push(pgid); 
             }
         }
-    }
+    }); 
     var rdata = { execname:"nestpolys1.py", stdindata:JSON.stringify({polymap:polymap, board:board, sequence:sequence}) }; 
     $.ajax({url:geturlcgipipe(), data:rdata, type:'POST', success:function(xjson) 
     {
@@ -316,7 +318,7 @@ function geturlcgipipe()
     return "http://"+cgiipnumber+":9003/cgipipe"; 
 }
 
-// handle EPS files using call out to server to execute pstoedit 
+var filecountid = 0; 
 function importSVGfiles(files)
 {
     $.each(files, function(i, f) { 
@@ -334,16 +336,18 @@ function importSVGfiles(files)
             Drect1.remove(); 
             Drect1 = null; 
         }
-        var fnum = filenamelist.length; 
-        filenamelist.push(f.name); 
-        var fadivid = 'fa'+fnum; 
+        var fadivid = 'fa'+filecountid; 
+        filecountid++; 
+        filenamelist[fadivid] = f.name; 
         $("div#filearea").append('<div id="'+fadivid+'"></div>'); 
+        $("div#"+fadivid).append('<span class="delbutton">&times;</span>'); 
         $("div#"+fadivid).append('<b>'+f.name+'</b>: '); 
         $("div#"+fadivid).append('<span class="spnumcols"></span>'); 
         $("div#"+fadivid).append('<span class="fprocessstatus">VV</span>'); 
         $("div#"+fadivid).append('<span class="groupprocess">GGoup</span>'); 
         
-        var svgprocess = new SVGfileprocess(f.name, fnum, fadivid); 
+        var svgprocess = new SVGfileprocess(f.name, fadivid); 
+        
         $("div#"+fadivid+" .fprocessstatus").click(function() { svgprocess.bcancelIm = true; }); 
         $("div#"+fadivid+" .groupprocess").click(function() { 
             if ($(this).hasClass("selected")) {
@@ -356,8 +360,14 @@ function importSVGfiles(files)
                     svgprocess.DetailsLoadingProcessTunnelx(); 
             }
         }); 
+        $("div#"+fadivid+" .delbutton").click(function() { 
+            var lfadivid = $(this).parent("div").attr("id"); 
+            delete SVGfileprocess[lfadivid]; 
+            $("div#"+fadivid).remove(); 
+        }); 
         
-        SVGprocesses.push(svgprocess); 
+        SVGprocesses[fadivid] = svgprocess; 
+        fadividlast = fadivid; 
 Df = f;         
         var reader = new FileReader(); 
         if (bsvg) {
@@ -482,6 +492,8 @@ div#filearea  { cursor:pointer; }
 
 div#filearea .fprocessstatus:hover { background: red; cursor: pointer }
 div#filearea .spnumcols span { border: thin black solid }
+div#filearea  span.delbutton { color: yellow }
+div#filearea  span.delbutton:hover { background: red; color: black }
 div#filearea .spnumcols span.selected { color: white }
 div#filearea .spnumcols span:hover { border-color:white }
 
@@ -511,6 +523,7 @@ input#mmpixwidth { width:3em }
 <div>
     <span>Machinekit twisted IPnumber: <input type="text" id="machinekitip" name="machinekitip" value="192.168.0.130"/></span>
     <input type="button" value="Send G-code" id="sendgcode"/>
+    <input type="checkbox" id="gcodeautorun" title="autorun">
     <input type="button" value="MKstats" id="requestmachinekitstats"/>
     <span id="machinekitstatus"></span>
 </div>
