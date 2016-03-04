@@ -316,8 +316,8 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     console.log(mclassstyle); 
 
     // autorun the group process (should distinguish easy cases)
-    if (txt.length < 10000)
-        $("div#"+this.fadivid+" .groupprocess").addClass("selected"); 
+    //if (txt.length < 10000)
+    //    $("div#"+this.fadivid+" .groupprocess").addClass("selected"); 
 
     this.rlistb = [ ]; 
     this.spnumlist = [ ]; 
@@ -406,7 +406,7 @@ function ProcessToPathGroupings(rlistb, closedist, spnumscp, fadivid)
 
     // list of paths not included in any cycle
     $(this.dfprocessstatus).text("getsingletlist"); 
-    var singletslist = PolySorting.GetSingletsList(jdseqs, dlist.length)
+    var singletslist = PolySorting.GetSingletsList(jdseqs, (dlist !== undefined ? dlist.length : 0)); // (why isn't dlist defined outside of the loop?)  
 
     // build the dlist without any holes parallel to rlistb to use for groupings
     var dlist = [ ]; 

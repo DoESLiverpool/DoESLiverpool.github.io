@@ -5,6 +5,7 @@
 <script type="text/javascript" src="raphael.js"></script>    
 <script type="text/javascript" src="raphpolygonsorting.js"></script>    
 <script type="text/javascript" src="raphimporting.js"></script>    
+<script type="text/javascript" src="svgizingtext.js"></script>    
 <meta charset="utf-8">
 <title>Experimental SVG lattice hinge generator</title>
 <script>
@@ -16,7 +17,7 @@ function exportSVG()
     var data = document.getElementById("svg1");
     var a = document.createElement('a');
     var blob = new Blob([xs.serializeToString(data)], {'type':"image/svg+xml"});
-    a.href = window.URL.createObjectURL(blob);
+    a.href = window.URL.createObjectUvgRL(blob);
     a.download = "test.svg";
     a.click();
 }
@@ -157,7 +158,9 @@ function requestmachinekitstats()
         else
             mkstatus = "mkready"; 
         $("#machinekitstatus").text(mkstatus); 
-        if ((toscasizerect == undefined) && machinekitstats.axis) {
+        if (machinekitstats.xlo !== undefined) {
+            if (toscasizerect !== undefined)
+                toscasizerect.remove(); 
             var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
             var mmwidth = machinekitstats.xhi - machinekitstats.xlo; 
             var mmheight = machinekitstats.yhi - machinekitstats.ylo; 
@@ -324,9 +327,10 @@ function importSVGfiles(files)
     $.each(files, function(i, f) { 
         var beps = f.type.match('image/x-eps'); 
         var bsvg = f.type.match('image/svg\\+xml'); 
+        var bsvgizedtext = f.type.match('svgizedtext'); 
         var bdxf = f.type.match('image/vnd\\.dxf'); 
         
-        if (!beps && !bsvg && !bdxf) {
+        if (!beps && !bsvg && !bdxf && !bsvgizedtext) {
             alert(f.name+" not SVG, EPS or DXF file: "+f.type); 
             return;
         }
@@ -370,7 +374,9 @@ function importSVGfiles(files)
         fadividlast = fadivid; 
 Df = f;         
         var reader = new FileReader(); 
-        if (bsvg) {
+        if (bsvgizedtext) {
+            svgprocess.InitiateLoadingProcess(f.svgtext); 
+        } else if (bsvg) {
             reader.onload = (function(e) { svgprocess.InitiateLoadingProcess(reader.result); }); 
             reader.readAsText(f); 
         } else {
@@ -388,6 +394,8 @@ Df = f;
         }
     }); 
 }
+
+
 
 
 var Rmmscalebar = null; 
@@ -412,7 +420,10 @@ function setup()
     
     $("#sendgcode").click(sendgcode); 
     $("#requestmachinekitstats").click(requestmachinekitstats); 
-
+    $("#svgizetext").click(function() { 
+        importSVGfiles([{type:'svgizedtext', svgtext:svgizetext($("#texttosvgize").val())}]); 
+    }); 
+    
     $("#paper1").on('dragover', function(e) {
         e.stopPropagation(); e.preventDefault(); 
     }).on('dragenter', function(e) {
@@ -521,11 +532,14 @@ input#mmpixwidth { width:3em }
     <span id="readingcancel">0/0</span>
 </div>
 <div>
-    <span>Machinekit twisted IPnumber: <input type="text" id="machinekitip" name="machinekitip" value="192.168.0.130"/></span>
+    <span>Machinekit twisted IPnumber: <input type="text" id="machinekitip" name="machinekitip" value="192.168.0.10"/></span>
     <input type="button" value="Send G-code" id="sendgcode"/>
     <input type="checkbox" id="gcodeautorun" title="autorun">
     <input type="button" value="MKstats" id="requestmachinekitstats"/>
     <span id="machinekitstatus"></span>
+        
+    <textarea id="texttosvgize">svgizing letters here</textarea>
+    <input type="button" value="svgizetext" id="svgizetext">
 </div>
 <div style="border: thin black solid" id="paper1"></div>
   
