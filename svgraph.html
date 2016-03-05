@@ -193,7 +193,7 @@ var paper1x0 = 0;
 var paper1y0 = 0; 
 var filenamelist = { }; 
 var rlist = [ ]; 
-var SVGprocesses = { }; // indexed by fadivid
+var SVGprocesses = { }; // indexed by fadivid (type SVGfileprocess, which it gets confused with)
 var fadividlast = undefined; 
 var pathselected = null; 
 var opts; 
@@ -368,7 +368,8 @@ function importSVGfiles(files)
         }); 
         $("div#"+fadivid+" .delbutton").click(function() { 
             var lfadivid = $(this).parent("div").attr("id"); 
-            delete SVGfileprocess[lfadivid]; 
+            SVGprocesses[lfadivid].removeall(); 
+            delete SVGprocesses[lfadivid]; 
             $("div#"+fadivid).remove(); 
         }); 
         

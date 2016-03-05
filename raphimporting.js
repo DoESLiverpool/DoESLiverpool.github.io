@@ -512,6 +512,19 @@ SVGfileprocess.prototype.applygroupdrag = function(pgroup, lpaths)
 }
 
 
+SVGfileprocess.prototype.removeall = function() 
+{
+    for (var i = 0; i < this.Lgrouppaths.length; i++) {
+        var pgroup = this.Lgrouppaths[i][0]; 
+        pgroup.undrag(); 
+        pgroup.remove(); 
+        for (var j = 1; j < this.Lgrouppaths[i].length; j++) {
+            this.Lgrouppaths[i][j].remove(); 
+        };
+    }
+    this.Lgrouppaths = [ ]; 
+}
+
 SVGfileprocess.prototype.groupimportedSVGfordrag = function(grouptype)
 {
     // could this be converted into a callback
