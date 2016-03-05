@@ -287,8 +287,8 @@ function importSVGpathRR(lthis)
         lthis.state = "done"+lthis.state; // "importsvgrareas" : "importsvgr"
         if (lthis.state == "donedetailsloading")
             lthis.processdetailSVGtunnelx(); 
-        else if (lthis.btunnelxtype || $("div#"+lthis.fadivid+" .groupprocess").hasClass("selected"))
-            lthis.processimportedSVG(); 
+        else 
+            lthis.groupimportedSVGfordrag("groupboundingrect"); 
     }
 }
 
@@ -322,6 +322,7 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     this.rlistb = [ ]; 
     this.spnumlist = [ ]; 
     this.spnummap = { }; // maps into the above from concatinations of subset and strokecolour
+    this.Lgrouppaths = [ ]; // used to hold the sets of paths we drag with
 
     // these control the loop importSVGpathRR runs within
     this.pback = {pos:-1, raphtranslist:[""], strokelist:[undefined], cmatrix:Raphael.matrix(this.fsca, 0, 0, this.fsca, 0, 0) };
@@ -333,7 +334,7 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     importSVGpathRR(this); 
 }
 
-SVGfileprocess.prototype.DetailsLoadingProcessTunnelx = function() 
+SVGfileprocess.prototype.LoadTunnelxDrawingDetails = function() 
 {
     console.assert(this.btunnelxtype); 
     this.state = "detailsloading"; 
@@ -480,7 +481,38 @@ SVGfileprocess.prototype.processdetailSVGtunnelx = function()
     this.state = "done"+this.state; 
 }
 
-SVGfileprocess.prototype.processimportedSVG = function()
+
+SVGfileprocess.prototype.applygroupdrag = function(pgroup, lpaths) 
+{
+    var brotatemode = false; 
+    var cx = 0, cy = 0; 
+    var basematrix; 
+    pgroup.drag(
+        function(dx, dy) { 
+            var tstr = (brotatemode ? "r"+(dx*0.5)+","+cx+","+cy : "t"+(dx*paper1scale)+","+(dy*paper1scale))+basematrix; 
+            for (var k = 0; k < lpaths.length; k++) {
+                lpaths[k].transform(tstr); 
+            }; 
+        }, 
+        function(x, y, e)  { 
+            brotatemode = e.ctrlKey; 
+            pathselected = pgroup; 
+            basematrix = pgroup.matrix.toTransformString(); 
+            var bbox = pgroup.getBBox(); 
+            cx = (bbox.x + bbox.x2)/2; 
+            cy = (bbox.y + bbox.y2)/2; 
+        }, 
+        function() { 
+            /*$.each(lpaths, function(i, path) { 
+                path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); 
+                path.transform("t0,0") 
+            });*/ 
+        }
+    ); 
+}
+
+
+SVGfileprocess.prototype.groupimportedSVGfordrag = function(grouptype)
 {
     // could this be converted into a callback
     var closedist = 3.2; 
@@ -490,23 +522,48 @@ SVGfileprocess.prototype.processimportedSVG = function()
         if (!$(v).hasClass("selected"))
             spnumscp.push(parseInt($(v).attr("class").match(/\d+/g)[0]));  // spnum(\d+) 
     }); 
-    console.log("hghghg", spnumscp); 
+    console.log("hghghg", grouptype, spnumscp); 
     
     // lists of indexes into rlistb specifying the linked boundaries and islands (*2+(bfore?1:0)), and engraving lines in the last list
-    if (this.btunnelxtype)
+    if (grouptype == "grouptunnelx")
         this.pathgroupings = ProcessToPathGroupingsTunnelX(this.rlistb, this.spnumlist); 
-    else
+    else if (grouptype == "groupcontainment")
         this.pathgroupings = ProcessToPathGroupings(this.rlistb, closedist, spnumscp, this.fadivid); 
-    
+    else { // (grouptype == "groupboundingrect")
+        var groupall = [ ]; 
+        for (var i = 0; i < this.rlistb.length; i++) 
+            groupall.push(i*2+1); 
+        this.pathgroupings = [ [ [ "boundrect"], groupall, [ ] ] ]; 
+    }
+
     this.state = "process"+this.state.slice(4); 
     $(this.dfprocessstatus).text("doneG"); 
 
     // rebuild this groupings directly from the above indexing sets
+    // remove old groups if they exist (mapping across the transforms)
+    console.log(this.Lgrouppaths); 
+    if (this.Lgrouppaths.length != 0) {
+        for (var i = 0; i < this.Lgrouppaths.length; i++) {
+            var pgroup = this.Lgrouppaths[i][0]; 
+            pgroup.undrag(); 
+            pgroup.remove(); 
+            for (var j = 1; j < this.Lgrouppaths[i].length; j++) {
+                var path = this.Lgrouppaths[i][j]; 
+                if (path.matrix.toTransformString() != "") {
+                    path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); 
+                    path.transform("t0,0"); 
+                }
+            };
+        }
+        this.Lgrouppaths = [ ]; 
+    }
+
+    // first copy out the path properties from the rlistb thing
     var dlist = [ ]; 
     for (var i = 0; i < this.rlistb.length; i++) 
         dlist.push(this.rlistb[i].path.attrs.path); 
-
-    this.Lgrouppaths = [ ]; 
+    
+    this.Lgrouppaths = [ ];  // [ [pgroup, path, path, path], [pgroup, path, ...], ... ]
     for (var k = 0; k < this.pathgroupings.length; k++) {
         var pathgrouping = this.pathgroupings[k]; 
         // [ "id", [outerpathlist], [innerpathlist1], [innerpathlist2], ..., [engpathlist(unorderedindexes)] ]
@@ -517,8 +574,15 @@ SVGfileprocess.prototype.processimportedSVG = function()
         for (var j = 1; j < pathgrouping.length - 1; j++) {
             dgroup = dgroup.concat(PolySorting.JDgeoseq(pathgrouping[j], dlist)); 
         }
-        var pgroup = paper1.path(dgroup); 
-        pgroup.attr({stroke:(this.btunnelxtype ? "black" : "white"), fill:fillcolour, "fill-opacity":"10%"}); 
+        var pgroup; 
+        if (pathgrouping[0] == "boundrect") {
+            var bbox = Raphael.pathBBox(dgroup); 
+            pgroup = paper1.path("M"+bbox.x+","+bbox.y+"H"+bbox.x2+"V"+bbox.y2+"H"+bbox.x+"Z"); 
+            pgroup.attr({stroke:"none", fill:"#bbe", "fill-opacity":"10%"}); 
+        } else {
+            pgroup = paper1.path(dgroup); 
+            pgroup.attr({stroke:(this.btunnelxtype ? "black" : "white"), fill:fillcolour, "fill-opacity":"10%"}); 
+        }
         
         // form the list of all paths belonging to this area object
         var lpaths = [ pgroup ]; 
@@ -531,34 +595,8 @@ SVGfileprocess.prototype.processimportedSVG = function()
         for (var i = 0; i < engpaths.length; i++)
             lpaths.push(this.rlistb[engpaths[i]].path); 
         this.Lgrouppaths.push(lpaths); 
-        // localize for drag function
-        (function(pgroup, lpaths) {
-            var brotatemode = false; 
-            var cx = 0, cy = 0; 
-            var basematrix; 
-            pgroup.drag(
-                function(dx, dy) { 
-                    var tstr = (brotatemode ? "r"+(dx*0.5)+","+cx+","+cy : "t"+(dx*paper1scale)+","+(dy*paper1scale))+basematrix; 
-                    for (var k = 0; k < lpaths.length; k++) {
-                        lpaths[k].transform(tstr); 
-                    }; 
-                }, 
-                function(x, y, e)  { 
-                    brotatemode = e.ctrlKey; 
-                    pathselected = pgroup; 
-                    basematrix = pgroup.matrix.toTransformString(); 
-                    var bbox = pgroup.getBBox(); 
-                    cx = (bbox.x + bbox.x2)/2; 
-                    cy = (bbox.y + bbox.y2)/2; 
-                }, 
-                function() { 
-                    /*$.each(lpaths, function(i, path) { 
-                        path.attr("path", Raphael.mapPath(path.attr("path"), path.matrix)); 
-                        path.transform("t0,0") 
-                    });*/ 
-                }
-            ); 
-        })(pgroup, lpaths); 
+
+        this.applygroupdrag(pgroup, lpaths); 
     }; 
 }
 

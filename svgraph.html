@@ -359,9 +359,11 @@ function importSVGfiles(files)
             } else {
                 $(this).addClass("selected"); 
                 if (svgprocess.state.match(/doneimportsvgr|doneimportsvgrareas/))
-                    svgprocess.processimportedSVG(); 
+                    svgprocess.groupimportedSVGfordrag((svgprocess.btunnelxtype ? "grouptunnelx" : "groupcontainment")); 
                 else if (svgprocess.state.match(/processimportsvgrareas/))
-                    svgprocess.DetailsLoadingProcessTunnelx(); 
+                    svgprocess.LoadTunnelxDrawingDetails(); 
+                else 
+                    svgprocess.groupimportedSVGfordrag((svgprocess.btunnelxtype ? "grouptunnelx" : "groupcontainment")); // reprocess again
             }
         }); 
         $("div#"+fadivid+" .delbutton").click(function() { 
@@ -546,6 +548,9 @@ input#mmpixwidth { width:3em }
 <p>Code is <a href="https://github.com/goatchurchprime/doesliverpool.github.io/">here</a></p>
 
 <p>Work to do:
+* batch delete on the x click
+* grouping by a big rectangle outline that's draggable
+
 *load the subsetareas separately and be able to pass over tsvg again to get the details
 *remove Raphael.mapPath at end of transform case (practice on scratch object first, then do the mappath on output)
 *remove jigsawareaoffset code from tunnelx java
@@ -558,7 +563,6 @@ input#mmpixwidth { width:3em }
 *pile objects along the right hand column in individual boxes
 *file select dropdowns that refer to local banks of colours/scales/unified line calls that may be different and can be rerun
 *zoom out all by default to scale the two laser board sizes in down the left hand side
-*EPS conversion using pstoedit on the twisted server
 *use colours or picking to specify the engraving curves
 *estimates of time to cut, which can be used to check if order of cut improving.  do cuts after each etch so abort still have working results
 *begin relay packing within area and clearance bits in callouts
@@ -567,6 +571,7 @@ input#mmpixwidth { width:3em }
 *colour bits by stock material (colour, thickness, type)
 *twisted banks and serves out components for the cutter, previews what's being calculated elsewhere.  
 </p>
+
 
 </body>
 </html>
