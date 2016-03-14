@@ -120,11 +120,19 @@ function sendgcode()
             setTimeout(exportGCODEpathR, 1); 
         } else {
             lgcode.push("G0Z5\nM2\n"); 
-            var rdata = lgcode.join(""); 
-            $.ajax({url:geturlcgipipe()+'/savengc.py?autorun='+($("#gcodeautorun").prop("checked") ? "yes" : "no"), data:rdata, type:'POST', success:function(msg) 
-            {
-                console.log("return message:", msg); 
-            }});             
+            if (bcgipipeworking) {
+                var rdata = lgcode.join(""); 
+                $.ajax({url:geturlcgipipe()+'/savengc.py?autorun='+($("#gcodeautorun").prop("checked") ? "yes" : "no"), data:rdata, type:'POST', success:function(msg) 
+                {
+                    console.log("return message:", msg); 
+                }});             
+            } else { 
+                var a = document.createElement('a');
+                var blob = new Blob(lgcode, {'type':"text/plain"});
+                a.href = window.URL.createObjectURL(blob);
+                a.download = "test.ngc";
+                a.click();
+            }
         }
         $("#readingcancel").text(i+"/"+rlist.length); 
     };
@@ -134,41 +142,48 @@ function sendgcode()
 
 var machinekitstats = undefined; 
 var toscasizerect = undefined; 
+function receivemachinekitstats(lmachinekitstats)
+{
+    machinekitstats = lmachinekitstats; 
+    console.log(machinekitstats); 
+    var mkstatus = "fetched"; 
+    if (machinekitstats["response"] == "bad")
+        mkstatus = "not working"
+    else if (machinekitstats["estop"] != 0)
+        mkstatus = "estop";
+    else if (!machinekitstats["enabled"])
+        mkstatus = "disabled";
+    else if ((machinekitstats["homed"][0] == 0) || (machinekitstats["homed"][1] == 0) || (machinekitstats["homed"][2] == 0))
+        mkstatus = "not homed";
+    else if (machinekitstats["interp_state"] != machinekitstats.INTERP_IDLE)
+        mkstatus = "not idle";
+    else
+        mkstatus = "mkready"; 
+    $("#machinekitstatus").text(mkstatus); 
+    if (machinekitstats.xlo !== undefined) {
+        if (toscasizerect !== undefined)
+            toscasizerect.remove(); 
+        var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
+        var mmwidth = machinekitstats.xhi - machinekitstats.xlo; 
+        var mmheight = machinekitstats.yhi - machinekitstats.ylo; 
+        toscasizerect = paper1.rect(15, 15, mmwidth*mmpixwidth, mmheight*mmpixwidth).attr({stroke:"grey", fill:"lightGrey"}).toBack(); 
+    }
+}
+
 function requestmachinekitstats() 
 {
     var stdindata = ""; 
     var rdata = stdindata; 
     $("#machinekitstatus").text("requesting..."); 
     //$.ajax({url:geturlcgipipe()+'/reverse.py?a=b', data:rdata, type:'POST', success:function(msg) 
-    $.ajax({url:geturlcgipipe()+'/machinekitstatus.py', data:rdata, type:'POST', success:function(msg) 
-    {
-        machinekitstats = JSON.parse(msg); 
-        console.log(machinekitstats); 
-        var mkstatus = "fetched"; 
-        if (machinekitstats["response"] == "bad")
-            mkstatus = "not working"
-        else if (machinekitstats["estop"] != 0)
-            mkstatus = "estop";
-        else if (!machinekitstats["enabled"])
-            mkstatus = "disabled";
-        else if ((machinekitstats["homed"][0] == 0) || (machinekitstats["homed"][1] == 0) || (machinekitstats["homed"][2] == 0))
-            mkstatus = "not homed";
-        else if (machinekitstats["interp_state"] != machinekitstats.INTERP_IDLE)
-            mkstatus = "not idle";
-        else
-            mkstatus = "mkready"; 
-        $("#machinekitstatus").text(mkstatus); 
-        if (machinekitstats.xlo !== undefined) {
-            if (toscasizerect !== undefined)
-                toscasizerect.remove(); 
-            var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
-            var mmwidth = machinekitstats.xhi - machinekitstats.xlo; 
-            var mmheight = machinekitstats.yhi - machinekitstats.ylo; 
-            toscasizerect = paper1.rect(15, 15, mmwidth*mmpixwidth, mmheight*mmpixwidth).attr({stroke:"grey", fill:"lightGrey"}).toBack(); 
-        }
-
-    }});             
+    if (bcgipipeworking) {
+        $.ajax({url:geturlcgipipe()+'/machinekitstatus.py', data:rdata, type:'POST', success:function(msg) { receivemachinekitstats(JSON.parse(msg)) }}); 
+    } else {
+        console.log("making machinekitstats numbers up"); 
+        receivemachinekitstats({"xlo":-620, "xhi":520, "ylo":-190, "yhi":600, "estop":0, "enabled":1, "homed":[1, 1, 1], "interp_state":1, INTERP_IDLE:1}); 
+    }
 }
+
 
 function TestCollision(dx, dy) 
 {
@@ -313,6 +328,7 @@ function Nest1()
 var Depstext; 
 var Df; 
 
+var bcgipipeworking = false; 
 function geturlcgipipe() 
 {
     var cgiipnumber = $("#machinekitip").val().trim(); 
@@ -320,6 +336,20 @@ function geturlcgipipe()
         cgiipnumber = "localhost"; 
     return "http://"+cgiipnumber+":9003/cgipipe"; 
 }
+
+function checkcgipipeworking() 
+{
+    bcgipipeworking = false; 
+    $('#machinekitip').css("background", "#fdd"); 
+    $("#sendgcode").val("Save G-code"); 
+    $.ajax({url:geturlcgipipe()+'/reverse.py', data:"hi there", type:'POST', success:function(msg) {
+        console.log("pipe check reverse:", msg); 
+        bcgipipeworking = true; 
+        $('#machinekitip').css("background", "#dfd"); 
+        $("#sendgcode").val("Send G-code"); 
+    }}); 
+}
+
 
 var filecountid = 0; 
 function importSVGfiles(files)
@@ -490,6 +520,14 @@ function setup()
          function(e)               { /*Drect1.attr("path", Raphael.mapPath(Drect1.attr("path"), Drect1.matrix)); Drect1.transform("t0,0")*/ }); 
     Drect1.onDragOver(function(e) { console.log(e); }); 
     pathselected = Drect1; 
+    
+    $('#machinekitip').keydown(function(e) {
+        if (e.keyCode == 13) {
+            e.preventDefault();
+            checkcgipipeworking(); 
+        }
+    });
+    checkcgipipeworking(); 
 }
 
 
