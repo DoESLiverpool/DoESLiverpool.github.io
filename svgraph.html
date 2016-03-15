@@ -93,12 +93,14 @@ function sendgcode()
     var xtopmm = machinekitstats.xlo; 
     var ytopmm = machinekitstats.yhi; 
     var thinningtolerancemm = 1.1; 
+    var breorder = true; 
     
     var rlfptseqs = [ ]; 
     var i = 0; 
     bcancelExIm = false; 
     var lgcode = undefined; 
-    
+    var ptlink = [ -xtopmm/fac, ytopmm/fac ]; // page origin
+
     $("#readingcancel").text("processinggcode"); 
     function exportGCODEpathR() {
         if (bcancelExIm)
@@ -120,10 +122,43 @@ function sendgcode()
             return; 
         }
         
+        var fpts; 
+        if (breorder) {
+            var ilink = -1; 
+            var ibreverse; 
+            var ddistlink = 0.0; 
+            for (var i = 0; i < rlfptseqs.length; i++) {
+                var lfpts = rlfptseqs[i]; 
+                var ddistfront = Math.abs(lfpts[0][0] - ptlink[0]) + Math.abs(lfpts[0][1] - ptlink[1]); 
+                var ddistback = Math.abs(lfpts[lfpts.length-1][0] - ptlink[0]) + Math.abs(lfpts[lfpts.length-1][1] - ptlink[1]); 
+                if ((ilink == -1) || (ddistfront < ddistlink)) {
+                    ddistlink = ddistfront; 
+                    ilink = i; 
+                    ibreverse = false; 
+                }
+                if (ddistback < ddistlink) {
+                    ddistlink = ddistback; 
+                    ilink = i; 
+                    ibreverse = true; 
+                }
+            }
+            var fpts = rlfptseqs[ilink]; 
+            if (ilink != rlfptseqs.length - 1) {
+                rlfptseqs[ilink] = rlfptseqs.pop(); 
+            } else {
+                rlfptseqs.pop(); 
+            }
+            if (ibreverse)
+                fpts.reverse(); 
+            ptlink = fpts[fpts.length - 1]; 
+        } else {
+            fpts = rlfptseqs.pop(); 
+        }
+
         // uncomment to plot the flattenpath for debug viewing
         //var Lfpts = [ ]; for (var Di = 0; Di < fpts.length; Di++); Lfpts.push(fpts[Di][0]+","+fpts[Di][1]); 
         //paper1.path("M"+Lfpts.join("L")).attr("stroke", "red");  
-        fpts = rlfptseqs.pop(); 
+        
         var spnum = 1; //rlistb[i].spnum;   // what's this comma clause doing???!
         if (spnum !== undefined) {
             for (var j = 0; j < fpts.length; j++) {
@@ -155,6 +190,7 @@ function sendgcode()
         }
         $("#readingcancel").text((rlist.length-rlfptseqs.length)+"/"+rlist.length); 
     };
+    
     exportGCODEpathR(); 
 }
 
@@ -504,7 +540,7 @@ function setup()
     // setup the raphael paper and bits
     paper1 = Raphael("paper1", 1300, 800);
     paper1.setViewBox(paper1x0*paper1scale, paper1y0*paper1scale, paper1.width*paper1scale, paper1.height*paper1scale); 
-    paper1.raphael.mousedown(function(e) { console.log(e); }); 
+    //paper1.raphael.mousedown(function(e) { console.log(e); }); 
     $(paper1.canvas).bind('mousewheel', function(e) {
         var paperelement = document.getElementById("paper1");
         var mx = e.clientX - paperelement.offsetLeft - 2; 
