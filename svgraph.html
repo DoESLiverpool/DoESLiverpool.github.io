@@ -80,31 +80,51 @@ function exportPLT()
     exportPLTpathR(); 
 }
 
+// this works from a position of no processing or re-ordering, like was done to the cutting paths for the laser
+// (we need to lightly reorder it)
 function sendgcode()
 {
     var svgprocess = SVGprocesses[fadividlast]; 
     var rlistb = svgprocess.rlistb; 
     var mmpixwidth = parseFloat($("#mmpixwidth").val()); 
     
-    var lgcode = [ "G64P0.2", "G0Z5F20000\n" ]; 
     var samplerateunit = 0.9; 
     var fac = 1.0/mmpixwidth; 
     var xtopmm = machinekitstats.xlo; 
     var ytopmm = machinekitstats.yhi; 
     var thinningtolerancemm = 1.1; 
+    
+    var rlfptseqs = [ ]; 
     var i = 0; 
     bcancelExIm = false; 
-    $("#readingcancel").text("sendinggcode"); 
+    var lgcode = undefined; 
+    
+    $("#readingcancel").text("processinggcode"); 
     function exportGCODEpathR() {
-        var path = rlistb[i].path; 
-        var d = path.attr("path"); 
-        var dtrans = Raphael.mapPath(d, path.matrix); 
-        var fpts = PolySorting.flattenpath(dtrans, cosangdot, thinningtolerancemm*fac) 
+        if (bcancelExIm)
+            return; 
+            
+        if (lgcode == undefined) {
+            var path = rlistb[rlfptseqs.length].path; 
+            var d = path.attr("path"); 
+            var dtrans = Raphael.mapPath(d, path.matrix); 
+            var fpts = PolySorting.flattenpath(dtrans, cosangdot, thinningtolerancemm*fac) 
+            rlfptseqs.push(fpts); 
+            
+            // next phase
+            if (rlfptseqs.length == rlistb.length) {
+                $("#readingcancel").text("ordersendinggcode"); 
+                lgcode = [ "G64P0.2", "G0Z5F20000\n" ]; 
+            }
+            setTimeout(exportGCODEpathR, 1); 
+            return; 
+        }
         
         // uncomment to plot the flattenpath for debug viewing
         //var Lfpts = [ ]; for (var Di = 0; Di < fpts.length; Di++); Lfpts.push(fpts[Di][0]+","+fpts[Di][1]); 
         //paper1.path("M"+Lfpts.join("L")).attr("stroke", "red");  
-        var spnum = rlistb[i].spnum, spnumobj; 
+        fpts = rlfptseqs.pop(); 
+        var spnum = 1; //rlistb[i].spnum;   // what's this comma clause doing???!
         if (spnum !== undefined) {
             for (var j = 0; j < fpts.length; j++) {
                 lgcode.push((j == 0 ? "G0Z5\nX" : "X") + (xtopmm+fpts[j][0]*fac).toFixed(3) + "Y" + (ytopmm-fpts[j][1]*fac).toFixed(3) + "\n"); 
@@ -114,9 +134,8 @@ function sendgcode()
         } else if (spnumobj) {
             console.log(TXlinestylespnum[spnumobj.linestyle]); 
         }
-        if (bcancelExIm) {
-            return; 
-        } else if (++i < rlistb.length) {
+        
+        if (rlfptseqs.length != 0) {
             setTimeout(exportGCODEpathR, 1); 
         } else {
             lgcode.push("G0Z5\nM2\n"); 
@@ -134,7 +153,7 @@ function sendgcode()
                 a.click();
             }
         }
-        $("#readingcancel").text(i+"/"+rlist.length); 
+        $("#readingcancel").text((rlist.length-rlfptseqs.length)+"/"+rlist.length); 
     };
     exportGCODEpathR(); 
 }
@@ -209,6 +228,7 @@ var paper1y0 = 0;
 var filenamelist = { }; 
 var rlist = [ ]; 
 var SVGprocesses = { }; // indexed by fadivid (type SVGfileprocess, which it gets confused with)
+var Dsvgprocess = undefined; // lastone
 var fadividlast = undefined; 
 var pathselected = null; 
 var opts; 
@@ -405,6 +425,7 @@ function importSVGfiles(files)
         
         SVGprocesses[fadivid] = svgprocess; 
         fadividlast = fadivid; 
+        Dsvgprocess = svgprocess; 
 Df = f;         
         var reader = new FileReader(); 
         if (bsvgizedtext) {
@@ -488,7 +509,7 @@ function setup()
         var paperelement = document.getElementById("paper1");
         var mx = e.clientX - paperelement.offsetLeft - 2; 
         var my = e.clientY - paperelement.offsetTop - 2; 
-        console.log(e.originalEvent.deltaY, mx, my, event); 
+        //console.log(e.originalEvent.deltaY, mx, my, event); 
         var cx = (mx + paper1x0)*paper1scale; 
         var cy = (my + paper1y0)*paper1scale; 
         //paper1.rect(cx, cy, 5, 5); 
@@ -573,7 +594,7 @@ input#mmpixwidth { width:3em }
     <span id="readingcancel">0/0</span>
 </div>
 <div>
-    <span>Machinekit twisted IPnumber: <input type="text" id="machinekitip" name="machinekitip" value="192.168.0.10"/></span>
+    <span>Machinekit twisted IPnumber: <input type="text" id="machinekitip" name="machinekitip" value="192.168.7.2"/></span>
     <input type="button" value="Send G-code" id="sendgcode"/>
     <input type="checkbox" id="gcodeautorun" title="autorun">
     <input type="button" value="MKstats" id="requestmachinekitstats"/>

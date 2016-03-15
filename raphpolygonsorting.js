@@ -49,7 +49,8 @@ flattenpath: function(d, cosangdot, thinningtolerance)
         var p1 = pts[i1]; 
         var vx = p1[0] - p0[0]; 
         var vy = p1[1] - p0[1]; 
-        var vlen = Math.sqrt(vx*vx + vy*vy); 
+        var vlensq = vx*vx + vy*vy; 
+        var vlen = Math.sqrt(vlensq); 
         var tol = 0.0; 
         for (var j = i0+1; j < i1; j++) {
             var p = pts[j]; 
@@ -57,7 +58,16 @@ flattenpath: function(d, cosangdot, thinningtolerance)
             var vpy = p[1] - p0[1]; 
             var ltol; 
             if (vlen != 0.0) {
-                ltol = Math.abs((vpx*vy - vpy*vx)/vlen); 
+                var lamk = vpx*vx + vpy*vy; 
+                if (lamk < 0.0) {
+                    ltol = Math.sqrt(vpx*vpx + vpy*vpy); 
+                } else if (lamk > vlensq) {
+                    var vpx1 = p[0] - p1[0]; 
+                    var vpy1 = p[1] - p1[1]; 
+                    ltol = Math.sqrt(vpx1*vpx1 + vpy1*vpy1); 
+                } else {
+                    ltol = Math.abs((vpx*vy - vpy*vx)/vlen); 
+                }
             } else {
                 ltol = Math.sqrt(vpx*vpx + vpy*vpy); 
             }
@@ -82,9 +92,8 @@ flattenpath: function(d, cosangdot, thinningtolerance)
                 i1++;
             }
         }
-        res.push(pts[i1]); 
+        res.push(pts[pts.length-1]); 
     }
-    
     return res; 
 }, 
 
@@ -137,12 +146,12 @@ FindPathOrientation: function(darea)
     return diamondB <= diamondF; 
 },
 
-FindClosedPathSequencesD: function(dlist, closedist)
+FindClosedPathSequencesD: function(dlist, closedist, bopencycles)
 {
     // create arrays of closest links
     var closedistSq = closedist*closedist; 
     var rlends = [ ]; // [ x, y, i, bfore ]
-    var rlidat = [ ]; // index*2 front back
+    var rlidat = [ ]; // index*2 + (front ? 1 : 0[back])
     Drlends = rlends; 
     Drlidat = rlidat; 
     for (var i = 0; i < dlist.length; i++) {
@@ -200,7 +209,7 @@ FindClosedPathSequencesD: function(dlist, closedist)
     var i = 0; 
     var Dloops = rlconns*2 + dlist.length; 
     while (i < dlist.length) {
-        console.assert(Dloops-- >= 0); 
+        console.assert(Dloops-- >= 0); // catches infinite loops
         if (rlidat[i*2].length == 0) {
             if (rlidat[i*2 + 1].length == 0) {
                 i++; 
@@ -237,7 +246,8 @@ FindClosedPathSequencesD: function(dlist, closedist)
                         break; 
                 }
             }
-            if (jd == jd0) {
+            
+            if ((jd == jd0) || (bopencycles && (jdseq.length != 0))) {
                 //console.log("found cycle", jdseq); 
                 jdseqs.push(jdseq); 
                 for (var ijd = 0; ijd < jdseq.length; ijd++) {

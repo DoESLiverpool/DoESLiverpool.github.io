@@ -396,7 +396,7 @@ function ProcessToPathGroupings(rlistb, closedist, spnumscp, fadivid)
             dlist.push(rlistb[i].spnum == spnum ? rlistb[i].path.attrs.path : null); 
             npathsc++; 
         }
-        var ljdseqs = PolySorting.FindClosedPathSequencesD(dlist, closedist); 
+        var ljdseqs = PolySorting.FindClosedPathSequencesD(dlist, closedist, false); 
         var npathsleft = 0; 
         for (var i = 0; i < ljdseqs.length; i++)
             npathsleft += ljdseqs[i].length; 
@@ -440,14 +440,18 @@ function ProcessToPathGroupings(rlistb, closedist, spnumscp, fadivid)
     }
     
     $(this.dfprocessstatus).text("singlets to groupings"); 
+    var unmatchedsinglets = [ ]; 
     for (var i = 0; i < singletslist.length; i++) {
         var ic = singletslist[i]; 
         var dpath = dlist[ic]; 
         var j = PolySorting.SingletsToGroupingsD(dpath, cboundislands, jdgeos); 
         if (j != -1)
             res[j][res[j].length-1].push(ic); 
+        else
+            unmatchedsinglets.push(ic); 
     }
 
+    //console.log("unmatched", unmatchedsinglets); 
     console.log("resres", res); 
     return res; 
 }
@@ -542,7 +546,8 @@ SVGfileprocess.prototype.groupimportedSVGfordrag = function(grouptype)
         this.pathgroupings = ProcessToPathGroupingsTunnelX(this.rlistb, this.spnumlist); 
     else if (grouptype == "groupcontainment")
         this.pathgroupings = ProcessToPathGroupings(this.rlistb, closedist, spnumscp, this.fadivid); 
-    else { // (grouptype == "groupboundingrect")
+    else { 
+        console.assert(grouptype == "groupboundingrect"); 
         var groupall = [ ]; 
         for (var i = 0; i < this.rlistb.length; i++) 
             groupall.push(i*2+1); 
