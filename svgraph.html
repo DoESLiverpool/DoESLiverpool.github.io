@@ -123,10 +123,10 @@ function sendgcode()
         }
         
         var fpts; 
+        var ddistlink = 100 + thinningtolerancemm*fac*2; 
         if (breorder) {
             var ilink = -1; 
             var ibreverse; 
-            var ddistlink = 0.0; 
             for (var i = 0; i < rlfptseqs.length; i++) {
                 var lfpts = rlfptseqs[i]; 
                 var ddistfront = Math.abs(lfpts[0][0] - ptlink[0]) + Math.abs(lfpts[0][1] - ptlink[1]); 
@@ -162,8 +162,9 @@ function sendgcode()
         var spnum = 1; //rlistb[i].spnum;   // what's this comma clause doing???!
         if (spnum !== undefined) {
             for (var j = 0; j < fpts.length; j++) {
-                lgcode.push((j == 0 ? "G0Z5\nX" : "X") + (xtopmm+fpts[j][0]*fac).toFixed(3) + "Y" + (ytopmm-fpts[j][1]*fac).toFixed(3) + "\n"); 
-                if (j == 0)
+                var bretract = ((j == 0) && ((lgcode.length <= 4) || (ddistlink >= thinningtolerancemm*fac*2))); 
+                lgcode.push((bretract ? "G0Z5\nX" : "X") + (xtopmm+fpts[j][0]*fac).toFixed(3) + "Y" + (ytopmm-fpts[j][1]*fac).toFixed(3) + "\n"); 
+                if (bretract)
                     lgcode.push("G1Z0\n"); 
             }
         } else if (spnumobj) {
