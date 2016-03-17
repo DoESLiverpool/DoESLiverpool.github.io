@@ -512,7 +512,15 @@ function setup()
     $("#sendgcode").click(sendgcode); 
     $("#requestmachinekitstats").click(requestmachinekitstats); 
     $("#svgizetext").click(function() { 
-        importSVGfiles([{type:'svgizedtext', svgtext:svgizetext($("#texttosvgize").val())}]); 
+        if (bcgipipeworking) {
+            //+($("#gcodeautorun").prop("checked") ? "yes" : "no")
+            $.ajax({url:geturlcgipipe()+'/genpoetry.py?centre=no', data:$("#texttosvgize").val(), type:'POST', success:function(msg) 
+            {
+                console.log("return message:", msg); 
+            }});             
+        } else {
+            importSVGfiles([{type:'svgizedtext', svgtext:svgizetext($("#texttosvgize").val())}]); 
+        }
     }); 
     
     $("#paper1").on('dragover', function(e) {

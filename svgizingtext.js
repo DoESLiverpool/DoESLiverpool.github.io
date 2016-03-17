@@ -75,6 +75,41 @@ characters["?"] = { "c": "?", "w": 635, "d": "M300 55v-55v55zM300 55v-55v55zM304
 characters[" "] = { "c": " ", "w": 500, "d": "" };
 
 
+function convertchartopointlist(c) 
+{
+    var d = characters[c].d; 
+    var w = characters[c].w; 
+    var dtrans = Raphael.mapPath(d, Raphael.matrix()); 
+    ptsl = [ ]; 
+    var i = 0; 
+    while (i < dtrans.length) {
+        var dtransl = [ dtrans[i] ]; 
+        while (true) {
+            i++; 
+            if ((i == dtrans.length) || (dtrans[i][0] == 'M'))
+                break; 
+            dtransl.push(dtrans[i]); 
+        }
+        ptsl.push(PolySorting.flattenpath(dtransl, cosangdot, 0.1)); 
+    }
+    return ptsl; 
+}
+
+function uploadallcharshapes()
+{
+    var ks = Object.keys(characters); 
+    var ls = [ ]; 
+    for (var i = 0; i < ks.length; i++) {
+        var ptsl = convertchartopointlist(ks[i]); 
+        var w = characters[ks[i]].w; 
+        ls.push(JSON.stringify({c:ks[i], w:w, ptsl:ptsl})); 
+        console.log(ls[ls.length-1]); 
+    }
+    $.ajax({url:geturlcgipipe()+'/savengc.py?autorun=no', data:ls.join("\n"), type:'POST', success:function(msg) 
+    {
+        console.log("return message:", msg); 
+    }});             
+}
 
 function svgizetext(texttosvgize)
 {
