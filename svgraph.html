@@ -80,6 +80,16 @@ function exportPLT()
     exportPLTpathR(); 
 }
 
+function rescalefile(fscale)
+{
+    var svgprocess = SVGprocesses[fadividlast]; 
+    var rlistb = svgprocess.rlistb; 
+    for (var i = 0; i < rlistb.length; i++) {
+        rlistb[i].path.attr("path", Raphael.mapPath(rlistb[i].path.attr("path"), Raphael.matrix(fscale, 0, 0, fscale, 0, 0))); 
+        //rlistb[i].path.scale(fscale, fscale, 0, 0); 
+    }
+}
+
 // this works from a position of no processing or re-ordering, like was done to the cutting paths for the laser
 // (we need to lightly reorder it)
 function sendgcode()
@@ -593,6 +603,14 @@ function setup()
             checkcgipipeworking(); 
         }
     });
+
+    $('#rescalefile').keydown(function(e) {
+        if (e.keyCode == 13) {
+            e.preventDefault();
+            rescalefile(parseFloat($("#rescalefile").val())); 
+        }
+    });
+    
     checkcgipipeworking(); 
 }
 
@@ -635,8 +653,9 @@ input#mmpixwidth { width:3em }
     <input type="button" value="Nest1" id="nest1">
     <span id="scale">1</span><span id="scaledouble">*2</span>
     <input type="file" id="files" name="files[]" multiple />
-    <span id="pixscale">pix-scale(mm):<input type="text" id="mmpixwidth" name="mmpixwidth" value="1"/></span>
+    <span id="pixscale">pix-scale(mm):<input type="text" id="mmpixwidth" name="mmpixwidth" value=""/></span>
     <span id="readingcancel">0/0</span>
+    <span id="rescalefilesp">rescale:<input type="text" id="rescalefile" name="rescalefile" value="1.0"/></span>
 </div>
 <div>
     <span>Machinekit twisted IPnumber: <input type="text" id="machinekitip" name="machinekitip" value="192.168.7.2"/></span>

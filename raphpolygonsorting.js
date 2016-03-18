@@ -345,7 +345,7 @@ JDgeoseq: function(jdseq, dlist)
             py = spath[0][2]; 
         }
     }
-    console.assert(darea[0][0] == "M"); 
+    console.assert((darea.length == 0) || (darea[0][0] == "M")); 
     if ((px != spath[0][1]) || (py != spath[0][2])) {
         darea.push(["L", darea[0][1], darea[0][2]]); 
     }
