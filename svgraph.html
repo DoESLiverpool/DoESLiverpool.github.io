@@ -88,6 +88,7 @@ function rescalefile(fscale)
         rlistb[i].path.attr("path", Raphael.mapPath(rlistb[i].path.attr("path"), Raphael.matrix(fscale, 0, 0, fscale, 0, 0))); 
         //rlistb[i].path.scale(fscale, fscale, 0, 0); 
     }
+    svgprocess.Lgrouppaths[0][0].attr("path", Raphael.mapPath(svgprocess.Lgrouppaths[0][0].attr("path"), Raphael.matrix(fscale, 0, 0, fscale, 0, 0))); 
 }
 
 // this works from a position of no processing or re-ordering, like was done to the cutting paths for the laser
@@ -110,7 +111,8 @@ function sendgcode()
     bcancelExIm = false; 
     var lgcode = undefined; 
     var ptlink = [ -xtopmm/fac, ytopmm/fac ]; // page origin
-
+    var finalx = (machinekitstats.xlo+machinekitstats.xhi)/2; 
+    
     $("#readingcancel").text("processinggcode"); 
     function exportGCODEpathR() {
         if (bcancelExIm)
@@ -174,6 +176,7 @@ function sendgcode()
             for (var j = 0; j < fpts.length; j++) {
                 var bretract = ((j == 0) && ((lgcode.length <= 4) || (ddistlink >= thinningtolerancemm*fac*2))); 
                 lgcode.push((bretract ? "G0Z5\nX" : "X") + (xtopmm+fpts[j][0]*fac).toFixed(3) + "Y" + (ytopmm-fpts[j][1]*fac).toFixed(3) + "\n"); 
+                finalx = xtopmm+fpts[j][0]*fac; 
                 if (bretract)
                     lgcode.push("G1Z0\n"); 
             }
@@ -184,7 +187,8 @@ function sendgcode()
         if (rlfptseqs.length != 0) {
             setTimeout(exportGCODEpathR, 1); 
         } else {
-            lgcode.push("G0Z5\nM2\n"); 
+            var movex = (finalx > 0 ? finalx-100 : finalx+100);
+            lgcode.push("G0Z5\nX"+movex.toFixed(3)+"M2\n"); 
             if (bcgipipeworking) {
                 var rdata = lgcode.join(""); 
                 $.ajax({url:geturlcgipipe()+'/savengc.py?autorun='+($("#gcodeautorun").prop("checked") ? "yes" : "no"), data:rdata, type:'POST', success:function(msg) 
@@ -524,7 +528,7 @@ function setup()
     $("#svgizetext").click(function() { 
         if (bcgipipeworking) {
             //+($("#gcodeautorun").prop("checked") ? "yes" : "no")
-            $.ajax({url:geturlcgipipe()+'/genpoetry.py?centre=no', data:$("#texttosvgize").val(), type:'POST', success:function(msg) 
+            $.ajax({url:geturlcgipipe()+'/genpoetry.py?reversed=no&centre=no', data:$("#texttosvgize").val(), type:'POST', success:function(msg) 
             {
                 console.log("return message:", msg); 
             }});             
@@ -658,7 +662,7 @@ input#mmpixwidth { width:3em }
     <span id="rescalefilesp">rescale:<input type="text" id="rescalefile" name="rescalefile" value="1.0"/></span>
 </div>
 <div>
-    <span>Machinekit twisted IPnumber: <input type="text" id="machinekitip" name="machinekitip" value="192.168.7.2"/></span>
+    <span>Machinekit twisted IPnumber: <input type="text" id="machinekitip" name="machinekitip" value="83.148.186.100"/></span>
     <input type="button" value="Send G-code" id="sendgcode"/>
     <input type="checkbox" id="gcodeautorun" title="autorun">
     <input type="button" value="MKstats" id="requestmachinekitstats"/>

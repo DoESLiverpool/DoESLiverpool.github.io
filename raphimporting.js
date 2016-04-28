@@ -596,10 +596,10 @@ SVGfileprocess.prototype.groupimportedSVGfordrag = function(grouptype)
         if (pathgrouping[0] == "boundrect") {
             var bbox = Raphael.pathBBox(dgroup); 
             pgroup = paper1.path("M"+bbox.x+","+bbox.y+"H"+bbox.x2+"V"+bbox.y2+"H"+bbox.x+"Z"); 
-            pgroup.attr({stroke:"none", fill:"#bbe", "fill-opacity":"10%"}); 
+            pgroup.attr({stroke:"none", fill:"#aae", "fill-opacity":"0.16"}); 
         } else {
             pgroup = paper1.path(dgroup); 
-            pgroup.attr({stroke:(this.btunnelxtype ? "black" : "white"), fill:fillcolour, "fill-opacity":"10%"}); 
+            pgroup.attr({stroke:(this.btunnelxtype ? "black" : "white"), fill:fillcolour, "fill-opacity":"0.1"}); 
         }
         
         // form the list of all paths belonging to this area object
