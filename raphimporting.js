@@ -14,6 +14,19 @@ var SVGfileprocess = function(fname, fadivid)
     // this.btunnelxtype
 }
 
+function converttomm(s) {
+    var fac = 1.0; 
+    if (s.match(/.*?(mm|\d\.)$/g))
+        fac = 1.0; 
+    else if (s.match(/.*?(in)$/g))
+        fac = 25.4; 
+    else if (s.match(/.*?(pt)$/g))
+        fac = 25.4/72; 
+    else
+        console.log("unrecognized units", s); 
+    return parseFloat(s)*fac; // parses what it understands
+}
+
 SVGfileprocess.prototype.WorkOutPixelScale = function() 
 {
     var svgtitletext = this.tsvg.find("title").text(); 
@@ -34,10 +47,8 @@ SVGfileprocess.prototype.WorkOutPixelScale = function()
     this.fmmpixwidth = inkscapedefaultmmpix; 
     this.fmmpixheight = inkscapedefaultmmpix; 
     if ((viewBox.length != 0) && (sheight != undefined) && (swidth != undefined)) {
-        console.assert(sheight.match(/.*?(mm|in)$/g)); 
-        var fmmheight = parseFloat(sheight) * (sheight[sheight.length-1] == 'n' ? 25.4 : 1); 
-        console.assert(swidth.match(/.*?(mm|in)$/g)); 
-        var fmmwidth = parseFloat(swidth) * (swidth[swidth.length-1] == 'n' ? 25.4 : 1); 
+        var fmmheight = converttomm(sheight); 
+        var fmmwidth = converttomm(swidth); 
         this.fmmpixwidth = viewBox[2]/fmmwidth; 
         this.fmmpixheight = viewBox[3]/fmmheight; 
     }
@@ -70,14 +81,17 @@ SVGfileprocess.prototype.processSingleSVGpathFinal = function(dtrans, bMsplits, 
 }
     
 SVGfileprocess.prototype.processSingleSVGpath = function(d, cmatrix, stroke, cc)
-{
+{    
     var dtrans = Raphael.mapPath(d, cmatrix); // Raphael.transformPath(d, raphtranslist.join("")); 
     if (dtrans.length <= 1)
         return; 
 
     var cclass; 
-    if ((stroke == "none") || (stroke === undefined)) 
+    if ((stroke == "none") || (stroke === undefined)) {
+        console.log("skipping path with no stroke", d); 
+        //stroke = "#ff0000"; // can use to override to see what it is
         return; 
+    }
     cclass = stroke; 
     
     // convert all to extended classes with these strokes in?
@@ -124,7 +138,19 @@ SVGfileprocess.prototype.importSVGpathR = function()
 
     // decode case where multiple classes in same field
     var cclass = cc.attr("class"); 
-    var cstroke = cc.attr("stroke") || cc.css("stroke"); 
+    var lstyle = { }; 
+    if (cc.attr("style")) {   // taken from parser in InitiateLoadingProcess
+        cc.attr("style").replace(/([^:;]*):([^:;]*)/gi, function(a1, b1, c1) { 
+            var c11 = c1.trim(); 
+            if ((c11.length != 0) && (c11[0] == '"') && (c11[c11.length-1] == '"'))
+                c11 = c11.slice(1, -1); 
+            lstyle[b1.trim().toLowerCase()] = c11; 
+        });
+    }
+    var cstroke = cc.attr("stroke") || cc.css("stroke") || lstyle["stroke"]; 
+    var cfill = cc.attr("fill") || cc.css("fill") || lstyle["fill"]; 
+    var ocfill = cfill; 
+  
     if (!cstroke && cclass) {
         var lcclasss = cclass.split(" "); 
         for (var k = 0; k < lcclasss.length; k++) { 
@@ -132,10 +158,15 @@ SVGfileprocess.prototype.importSVGpathR = function()
             if (lcclass) {
                 var lstroke = this.mclassstyle[lcclass] && this.mclassstyle[lcclass]["stroke"]; 
                 var lfill = this.mclassstyle[lcclass] && this.mclassstyle[lcclass]["fill"]; 
-                cstroke = lstroke || cstroke || lfill;  // prioritized getting colour from somewhere
+                cstroke = lstroke || cstroke;  // prioritized getting colour from somewhere
+                if (!ocfill)
+                    cfill = lfill || cfill; 
             }
         }
     }
+    
+    if (!cstroke || (cstroke == "none"))  // use fill if stroke not there
+        cstroke = cfill;  // strictly because there is a strokelist stack but no filllist stack, this will mask any lower fills anyway
     
     if (cstroke) {
         strokelist = strokelist.slice(); 
@@ -219,7 +250,6 @@ SVGfileprocess.prototype.processSingleSVGpathTunnelx = function(d, stroke, cc)
     var mcs = this.mclassstyle[cclass]; 
     var dlinestyle = mcs.dlinestyle; 
     this.spnummapGetCreate(cclass, mcs, stroke); 
-    
     if (this.state == "importsvgrareas") {
         if (mcs.dlinestyle === undefined) {
             console.log(cclass); 
@@ -301,7 +331,6 @@ SVGfileprocess.prototype.InitiateLoadingProcess = function(txt)
     this.txt = txt; 
     this.tsvg = $($(txt).children()[0]).parent(); // seems not to work directly as $(txt).find("svg")
     this.WorkOutPixelScale();  // sets the btunnelxtype
-
     this.mclassstyle = { }; 
     var mclassstyle = this.mclassstyle; 
     this.tsvg.find("style").text().replace(/\.([\w\d\-]+)\s*\{([^}]*)/gi, function(a, b, c) { 
@@ -590,7 +619,8 @@ SVGfileprocess.prototype.groupimportedSVGfordrag = function(grouptype)
         var dgroup = [ ]; 
         var fillcolour = (this.btunnelxtype ? this.spnumlist[this.rlistb[pathgrouping[1][0]/2|0].spnum].fillcolour : "#0f0"); 
         for (var j = 1; j < pathgrouping.length - 1; j++) {
-            dgroup = dgroup.concat(PolySorting.JDgeoseq(pathgrouping[j], dlist)); 
+            if (pathgrouping[j].length != 0)
+                dgroup = dgroup.concat(PolySorting.JDgeoseq(pathgrouping[j], dlist)); 
         }
         var pgroup; 
         if (pathgrouping[0] == "boundrect") {

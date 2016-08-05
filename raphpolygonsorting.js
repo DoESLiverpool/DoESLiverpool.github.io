@@ -316,11 +316,14 @@ RevJDseq: function(jdseq)
 JDgeoseq: function(jdseq, dlist)
 {
     var darea = [ ]; 
+    console.log(jdseq); 
+    var spath = undefined; 
+    console.assert(jdseq.length != 0); 
     for (var ijd = 0; ijd < jdseq.length; ijd++) {
         var jd = jdseq[ijd]; 
         var i = jd/2|0; 
         var bfore = ((jd%2)==1); 
-        var spath = dlist[i]; 
+        spath = dlist[i]; 
         console.assert(spath[0][0] == "M"); 
         var px, py; 
         if (bfore) {
