@@ -17,7 +17,7 @@ function exportSVG()
     var data = document.getElementById("svg1");
     var a = document.createElement('a');
     var blob = new Blob([xs.serializeToString(data)], {'type':"image/svg+xml"});
-    a.href = window.URL.createObjectUvgRL(blob);
+    a.href = window.URL.createObjectURL(blob);
     a.download = "test.svg";
     a.click();
 }
